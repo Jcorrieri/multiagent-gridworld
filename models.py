@@ -1,28 +1,45 @@
-import random
 from argparse import Namespace
 
 import numpy as np
 import torch.nn as nn
+from gymnasium.wrappers import FlattenObservation
+from stable_baselines3 import PPO
+from stable_baselines3.common.env_checker import check_env
 
 import utils
 from gymnasium_env.envs.grid_world import Actions
 
 
-class SimpleNet(nn.Module):
-    def __init__(self):
-        super(SimpleNet, self).__init__()
-
-
-class BasicRandomPolicy(nn.Module):
+class CustomPPO(nn.Module):
     def __init__(self, args: Namespace):
-        super(BasicRandomPolicy, self).__init__()
+        super(CustomPPO, self).__init__()
+        self.model = PPO.load("PPO_test") if args.test else None
         self.args = args
 
     def forward(self, x):
-        moves = np.array([random.randint(0, 4) for _ in range(self.args.num_agents)])
+        # flatten obs (x)
+        flat_map = x['map'].ravel()
+        flat_agents = x['agents'].ravel()
+        obs = np.concatenate((flat_agents, flat_map))
 
-        return moves
+        action, _states = self.model.predict(np.array(obs))
+        return action
 
+    def train_ppo(self):
+        train_env = FlattenObservation(self.args.env)
+        check_env(train_env, warn=True)
+        model = PPO("MlpPolicy", train_env, verbose=1)
+        model.learn(total_timesteps=25000)
+        model.save("PPO_test")
+        self.model = model
+
+class RandomPolicy(nn.Module):
+    def __init__(self, args: Namespace):
+        super(RandomPolicy, self).__init__()
+        self.args = args
+
+    def forward(self, x):
+        return self.args.env.action_space.sample()
 
 class FrontierPolicy(nn.Module):
     def __init__(self, args: Namespace):
@@ -38,7 +55,7 @@ class FrontierPolicy(nn.Module):
         ]
         # assuming shortest distance is available
         for i, agent in enumerate(obs['agents']):
-            # calculate closest nonvisited point
+            # calculate closest non visited point
             target = utils.find_closest_frontier(agent, unvisited_nodes)
             if not target:
                 moves[i] = Actions.no_op.value

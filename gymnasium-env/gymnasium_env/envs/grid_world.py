@@ -140,7 +140,7 @@ class GridWorldEnv(gym.Env):
                 reward += 1
             self.visited[loc[0], loc[1]] = True
 
-        terminated = np.all(self.visited)
+        terminated = bool(np.all(self.visited))
 
         if terminated:
             reward += 10
@@ -191,8 +191,6 @@ class GridWorldEnv(gym.Env):
                 (loc + 0.5) * pix_square_size,
                 pix_square_size / 3,
             )
-
-
 
         # Add some gridlines
         for x in range(self.size + 1):

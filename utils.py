@@ -14,13 +14,8 @@ def direction_to_action(direction):
     return direction_map[tuple(direction)]
 
 def find_closest_frontier(agent_loc, unvisited_nodes):
-    # Convert unvisited nodes into a list of tuples for KDTree
     tree = cKDTree(unvisited_nodes)
-
-    # Query the tree to find the closest node to the robot's position
     distance, index = tree.query(agent_loc)
-
-    # Return the closest node
     return unvisited_nodes[index]
 
 def get_neighbors(node, size):
