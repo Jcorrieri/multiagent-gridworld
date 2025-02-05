@@ -1,7 +1,29 @@
+import sys
+
 import numpy as np
 from scipy.spatial import cKDTree
+from stable_baselines3.common.logger import HumanOutputFormat
 
 from gymnasium_env.envs.grid_world import Actions
+
+class MinimalLogger(HumanOutputFormat):
+    def write(self, key_values, key_excluded, step=0):
+        # Extract relevant information
+        steps = key_values.get("time/total_timesteps", "N/A")
+        mean_reward = key_values.get("rollout/ep_rew_mean", "N/A")
+        loss = key_values.get("train/loss", "N/A")
+
+        # Handle formatting for numeric values
+        steps_str = f"{steps}" if steps != "N/A" else "N/A"
+        mean_reward_str = f"{float(mean_reward):.2f}" if mean_reward != "N/A" else "N/A"
+        loss_str = f"{float(loss):.2f}" if loss != "N/A" else "N/A"
+
+        # Print on a single line
+        sys.stdout.write(f"\rSteps: {steps_str} | Mean Reward: {mean_reward_str} | Loss: {loss_str}")
+        sys.stdout.flush()
+
+    def close(self):
+        pass  # Override base method without needing extra logic
 
 def direction_to_action(direction):
     direction_map = {
@@ -34,7 +56,7 @@ def parse_optimizer(parser):
     parser.add_argument('--test', type=bool, default=False)
     parser.add_argument('--env_name', type=str, default='GridWorld-v0')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--model', type=str, default='greedy')
+    parser.add_argument('--model', type=str, default='ppo')
     parser.add_argument('--num_episodes', type=int, default=10)
     parser.add_argument('--render_mode', type=str, default='rgb_array')
     parser.add_argument('--size', type=int, default=5)
