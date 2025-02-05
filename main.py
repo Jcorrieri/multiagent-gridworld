@@ -77,7 +77,11 @@ def main():
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
-    model = CustomPPO(args)
+
+    if args.model == 'Frontier':
+        model = FrontierPolicy(args)
+    else:
+        model = CustomPPO(args)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 

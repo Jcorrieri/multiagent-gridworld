@@ -25,8 +25,10 @@ class GridWorldEnv(gym.Env):
         self.visited = np.zeros((size, size), dtype=bool)
         self._agent_locations = np.zeros((num_agents, 2), dtype=int)
 
-        # 1D vector of agent locations (pairs of indices) followed by boolean map
-        self.observation_space = spaces.Box(low=0, high=size-1, shape=(num_agents*2 + size**2,), dtype=np.int64)
+        self.observation_space = spaces.Dict({
+            "agents": spaces.Box(low=0, high=size-1, shape=(num_agents, 2), dtype=int),
+            "map": spaces.Box(low=0, high=1, shape=(size, size), dtype=bool),
+        })
 
         # We have 5 actions for each agent.
         self.action_space = spaces.MultiDiscrete([5] * num_agents)
@@ -67,20 +69,21 @@ class GridWorldEnv(gym.Env):
         return edges
 
     def _get_obs(self):
-        flat_agents = np.ravel(self._agent_locations[:self.num_agents])
-        flat_map = self.visited.ravel()
-        return np.concatenate((flat_agents, flat_map))
+        return {
+            "agents": self._agent_locations,
+            "map": self.visited,
+        }
 
     def _get_info(self):
         return {
             "coverage": np.sum(self.visited) / (self.size * self.size)
         }
 
-    def update_grid_size(self, new_size):
-        """Update the environment's grid size and adjust observation spaces."""
-        self.size = new_size
-        self.observation_space = spaces.Box(low=0, high=new_size-1, shape=(self.num_agents*2 + new_size*2,), dtype=np.int64)
-        self.reset()
+    # def update_grid_size(self, new_size):
+    #     """Update the environment's grid size and adjust observation spaces."""
+    #     self.size = new_size
+    #     self.observation_space = spaces.Box(low=0, high=new_size-1, shape=(self.num_agents*2 + new_size*2,), dtype=np.int64)
+    #     self.reset()
 
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
@@ -134,14 +137,15 @@ class GridWorldEnv(gym.Env):
         # Mark the new position as visited + calc rewards
         for loc in self._agent_locations:
             if self.visited[loc[0], loc[1]]:
-                reward -= 0.1
+                reward -= 0.5
             else:
-                reward += 1
+                reward += 1.0
             self.visited[loc[0], loc[1]] = True
 
         terminated = bool(np.all(self.visited))
         if terminated:
             reward += self.size
+
         observation = self._get_obs()
         info = self._get_info()
 
