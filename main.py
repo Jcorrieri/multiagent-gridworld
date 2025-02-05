@@ -1,13 +1,13 @@
 import argparse
 import random
+
 import gymnasium
 import numpy as np
 import torch
 
 import utils
-from models import FrontierPolicy, RandomPolicy, CustomPPO
-
-VISIT_ALL_REWARD = 10
+from models.baselines import FrontierPolicy, RandomPolicy
+from models.ppo import CustomPPO
 
 def train_one_epoch(env, model):
     episode_over = False
@@ -57,7 +57,7 @@ def test(args, model):
     print("Results:\n------------------------------")
     for r in results:
         print("Model:", r[0])
-        print("Total Reward: {reward:0.2f}/{max_reward}".format(reward=r[1], max_reward=args.size**2 + VISIT_ALL_REWARD))
+        print("Total Reward: {reward:0.2f}/{max_reward}".format(reward=r[1], max_reward=args.size**2 + args.size))
         print("------------------------------")
 
 def main():
@@ -85,7 +85,7 @@ def main():
         print("Training Parameters:\n--------------------\n{}".format(args))
         print("Model:\n{}".format(model))
         print("--------------------\nTraining...")
-        if type(model) == CustomPPO:
+        if type(model) is CustomPPO:
             model.train_ppo()
         else:
             train(args, model)

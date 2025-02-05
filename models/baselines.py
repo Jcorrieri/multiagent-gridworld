@@ -1,37 +1,9 @@
 from argparse import Namespace
-
 import numpy as np
 import torch.nn as nn
-from gymnasium.wrappers import FlattenObservation
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_checker import check_env
-
 import utils
 from gymnasium_env.envs.grid_world import Actions
 
-
-class CustomPPO(nn.Module):
-    def __init__(self, args: Namespace):
-        super(CustomPPO, self).__init__()
-        self.model = PPO.load("PPO_test") if args.test else None
-        self.args = args
-
-    def forward(self, x):
-        # flatten obs (x)
-        flat_map = x['map'].ravel()
-        flat_agents = x['agents'].ravel()
-        obs = np.concatenate((flat_agents, flat_map))
-
-        action, _states = self.model.predict(np.array(obs))
-        return action
-
-    def train_ppo(self):
-        train_env = FlattenObservation(self.args.env)
-        check_env(train_env, warn=True)
-        model = PPO("MlpPolicy", train_env, verbose=1)
-        model.learn(total_timesteps=25000)
-        model.save("PPO_test")
-        self.model = model
 
 class RandomPolicy(nn.Module):
     def __init__(self, args: Namespace):
@@ -50,17 +22,30 @@ class FrontierPolicy(nn.Module):
         obs = x
         moves = np.array([Actions.no_op.value for _ in range(self.args.num_agents)], dtype=int)
 
-        unvisited_nodes = [
-            (i, j) for i in range(len(obs['map'])) for j in range(len(obs['map'][i])) if not obs['map'][i][j]
-        ]
+        grid, agents = np.zeros((self.args.size, self.args.size), dtype=int), []
+        i = 0
+        while i < self.args.num_agents * 2:
+            agents.append(np.array([x[i], x[i+1]]))
+            i += 2
+
+        r, c = 0, 0
+        for i in range((self.args.num_agents*2), len(obs)):
+            grid[r, c] = obs[i]
+            if c == self.args.size - 1:
+                c = 0
+                r += 1
+            else:
+                c += 1
+
+        unvisited_nodes = [(i, j) for i in range(len(grid)) for j in range(len(grid[i])) if not grid[i][j]]
         # assuming shortest distance is available
-        for i, agent in enumerate(obs['agents']):
+        for i, agent in enumerate(agents):
             # calculate closest non visited point
             target = utils.find_closest_frontier(agent, unvisited_nodes)
             if not target:
                 moves[i] = Actions.no_op.value
                 continue
-
+            target = np.array(target)
             distance = np.linalg.norm(target - agent)
             neighbors = utils.get_neighbors(agent, self.args.size)
             for neighbor in neighbors:
