@@ -7,7 +7,6 @@ import torch.nn as nn
 from gymnasium import spaces
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.logger import Logger
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
@@ -16,25 +15,19 @@ from utils import MinimalLogger
 
 # create larger grid environments incrementally
 class CurriculumCallback(BaseCallback):
-    def __init__(self, check_freq, grid_size_start=5, grid_size_max=25,
-                 success_threshold=0.95, verbose=1):
+    def __init__(self, check_freq, grid_size_start=5, grid_size_max=25, verbose=1):
         super().__init__(verbose)
         self.check_freq = check_freq
         self.grid_size_start = grid_size_start
         self.grid_size_current = grid_size_start
         self.grid_size_max = grid_size_max
-        self.success_threshold = success_threshold
-        self.successes = 0
 
     def _on_step(self):
         if self.n_calls % self.check_freq == 0:
-            if self.successes / self.check_freq > self.success_threshold:
-                if self.grid_size_current < self.grid_size_max:
-                    self.grid_size_current += 1
-                    self.training_env.env_method("update_grid_size",
-                                                 self.grid_size_current)
-                    self.successes = 0
-
+            if self.grid_size_current < self.grid_size_max:
+                self.grid_size_current += 1
+                self.training_env.env_method("update_grid_size",
+                                             self.grid_size_current)
         return True
 
 
@@ -65,8 +58,7 @@ class CustomPPO(nn.Module):
         return action
 
     def train_ppo(self):
-        check_env(self.args.env, warn=True)
-        model = PPO("MlpPolicy", self.args.env, verbose=0,
+        model = PPO("MultiInputPolicy", self.args.env, verbose=0,
                 learning_rate=3e-4,
                 n_steps=2048,
                 batch_size=64,
@@ -78,11 +70,13 @@ class CustomPPO(nn.Module):
         total_timesteps = 200000
         curriculum_callback = CurriculumCallback(check_freq=10000,
                                                  grid_size_start=self.args.size,
-                                                 grid_size_max=20,
-                                                 success_threshold=0.95)
+                                                 grid_size_max=20)
 
         new_logger = Logger(folder=None, output_formats=[MinimalLogger(sys.stdout)])
         model.set_logger(new_logger)
         model.learn(total_timesteps=total_timesteps)
         model.save("PPO_test")
         self.model = model
+
+    def set_env(self, env):
+        self.model.set_env(env)
