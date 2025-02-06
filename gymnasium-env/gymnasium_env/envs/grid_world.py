@@ -14,7 +14,7 @@ class Actions(Enum):
 
 
 class GridWorldEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 8}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 24}
 
     def __init__(self, render_mode=None, size=5, num_agents=2, cr=3):
         self.size = size  # The size of the square grid
