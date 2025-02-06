@@ -1,0 +1,11 @@
+{
+  "learning_rate": 3e-4,
+  "n_steps": 2048,
+  "total_timesteps": 200000,
+  "batch_size": 64,
+  "n_epochs": 10,
+  "gamma": 0.99,
+  "gae_lambda": 0.95,
+  "clip_range": 0.2,
+  "model_path": "./models/saved/ppo_custom"
+}

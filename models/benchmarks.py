@@ -13,13 +13,13 @@ class RandomPolicy(nn.Module):
     def forward(self, x):
         return self.args.env.action_space.sample()
 
+
 class FrontierPolicy(nn.Module):
     def __init__(self, args: Namespace):
         super(FrontierPolicy, self).__init__()
         self.args = args
 
     def forward(self, x):
-        obs = x
         grid, agents = x['map'], x['agents']
         moves = np.array([Actions.no_op.value for _ in range(self.args.num_agents)], dtype=int)
 
