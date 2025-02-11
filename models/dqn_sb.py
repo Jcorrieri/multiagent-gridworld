@@ -37,10 +37,8 @@ class TestDQN(nn.Module):
         super(TestDQN, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Custom feature extractor
         self.feature_extractor = CustomDQNExtractor(observation_space)
 
-        # Define fully connected layers for Q-network
         self.q_network = nn.Sequential(
             nn.Linear(64, 128),
             nn.ReLU(),

@@ -1,12 +1,11 @@
 import argparse
 import random
-import sys
 
 import gymnasium
 import torch
-from stable_baselines3.common.logger import Logger
 
 import utils
+from models.Wrappers import CnnWrapper
 from models.benchmarks import FrontierPolicy, RandomPolicy
 from models.dqn_sb import CustomDQN
 from models.ppo import CustomPPO
@@ -30,6 +29,8 @@ def test(args, model):
     test_seed = args.seed + random.randint(1, 10000)
     game_env = gymnasium.make('gymnasium_env/' + args.env_name, render_mode="human", size=args.size,
                               num_agents=args.num_agents, cr=args.cr)
+    if model is CustomPPO or model is CustomDQN:
+        game_env = CnnWrapper(game_env, size=args.size)
     results = [[model, test_step(game_env, model, test_seed)]]
 
     baselines = [FrontierPolicy(args), RandomPolicy(args)]
@@ -39,7 +40,7 @@ def test(args, model):
     print("Results:\n------------------------------")
     for r in results:
         print("Model:", r[0])
-        print("Total Reward: {reward:0.2f}/{max_reward}".format(reward=r[1], max_reward=args.size**2 + args.size))
+        print("Total Reward: {reward:0.2f}/{max_reward}".format(reward=r[1], max_reward=args.size**2 * 2))
         print("------------------------------")
 
 def main():
@@ -53,7 +54,13 @@ def main():
     if num_agents > (size * size):
         raise ValueError('Too many agents for given map size')
     env = gymnasium.make('gymnasium_env/'+args.env_name, size=size, render_mode='rgb_array', num_agents=num_agents, cr=cr)
+    # env = Monitor(env)
     args.env = env
+
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
+    print("Using device:", device)
+    args.device = device
 
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
@@ -62,20 +69,20 @@ def main():
     # TODO -- replace w generic model loading
     if args.model == 'PPO':
         model = CustomPPO(args)
+    elif args.model == 'PPO-Default':
+        model = CustomPPO(args, True)
     elif args.model == 'DQN':
         model = CustomDQN(args)
     else:
         model = FrontierPolicy(args)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     if not args.test:
         print("Training Parameters:\n--------------------\n{}".format(args))
         print("Model:\n{}".format(model))
         print("--------------------\nTraining...")
-        logger = Logger(folder=None, output_formats=[utils.MinimalLogger(sys.stdout)])
         if type(model) is CustomPPO or type(model) is CustomDQN:
-            model.learn(logger)
+            model.learn()
         else:
             train(args, model)
     else:
