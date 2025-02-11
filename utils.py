@@ -54,7 +54,7 @@ def parse_optimizer(parser):
     parser.add_argument('--model', type=str, default='PPO')
     parser.add_argument('--env_name', type=str, default='GridWorld-v0')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--model_path', type=str)
+    parser.add_argument('--model_path', type=str, default='models/saved/new_model')
     parser.add_argument('--num_episodes', type=int, default=10)
     parser.add_argument('--size', type=int, default=16)
     parser.add_argument('--num_agents', type=int, default=2)

@@ -50,11 +50,10 @@ class CustomPPO(nn.Module):
     def __init__(self, args: Namespace, default: bool = False):
         super(CustomPPO, self).__init__()
         self.args = args
-        self.filename = "models/saved/Custom_PPO" if not default else "models/saved/Default_PPO"
         if args.test:
-            self.model = PPO.load(self.filename)
+            self.model = PPO.load(self.args.model_path)
         elif default:
-            self.model = PPO("MultiInputPolicy", args.env, verbose=0, device=args.device)
+            self.model = PPO("MultiInputPolicy", args.env, verbose=0, ent_coef=0.01, device = args.device)
         else:
             env = CnnWrapper(args.env, args.size)
             policy_kwargs = dict(
@@ -68,16 +67,18 @@ class CustomPPO(nn.Module):
                              n_epochs=10,
                              gamma=0.99,
                              gae_lambda=0.95,
-                             clip_range=0.2)
+                             clip_range=0.2,
+                             vf_coef=0.5,
+                             max_grad_norm=0.5)
 
     def forward(self, x):
         action, _states = self.model.predict(x)
         return action
 
     def learn(self):
-        total_timesteps = 25000
+        total_timesteps = 200000
         # curriculum_callback = CurriculumCallback(check_freq=10000,
         #                                          grid_size_start=self.args.size,
         #                                          grid_size_max=20)
         self.model.learn(total_timesteps=total_timesteps, callback=TQDMCallback(total_timesteps))
-        self.model.save(self.filename)
+        self.model.save(self.args.model_path)
