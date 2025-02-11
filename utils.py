@@ -1,50 +1,8 @@
-import sys
-
 import numpy as np
 from scipy.spatial import cKDTree
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.logger import HumanOutputFormat
-from torch import nn
 
 from gymnasium_env.envs.grid_world import Actions
 
-
-# create larger grid environments incrementally
-class CurriculumCallback(BaseCallback):
-    def __init__(self, check_freq, grid_size_start=5, grid_size_max=25, verbose=1):
-        super().__init__(verbose)
-        self.check_freq = check_freq
-        self.grid_size_start = grid_size_start
-        self.grid_size_current = grid_size_start
-        self.grid_size_max = grid_size_max
-
-    def _on_step(self):
-        if self.n_calls % self.check_freq == 0:
-            if self.grid_size_current < self.grid_size_max:
-                self.grid_size_current += 1
-                self.training_env.env_method("update_grid_size",
-                                             self.grid_size_current)
-        return True
-
-
-class MinimalLogger(HumanOutputFormat):
-    def write(self, key_values, key_excluded, step=0):
-        # Extract relevant information
-        steps = key_values.get("time/total_timesteps", "N/A")
-        mean_reward = key_values.get("rollout/ep_rew_mean", "N/A")
-        loss = key_values.get("train/loss", "N/A")
-
-        # Handle formatting for numeric values
-        steps_str = f"{steps}" if steps != "N/A" else "N/A"
-        mean_reward_str = f"{float(mean_reward):.2f}" if mean_reward != "N/A" else "N/A"
-        loss_str = f"{float(loss):.2f}" if loss != "N/A" else "N/A"
-
-        # Print on a single line
-        sys.stdout.write(f"\rSteps: {steps_str} | Mean Reward: {mean_reward_str} | Loss: {loss_str}")
-        sys.stdout.flush()
-
-    def close(self):
-        pass  # Override base method without needing extra logic
 
 def direction_to_action(direction):
     direction_map = {
@@ -72,6 +30,24 @@ def get_neighbors(node, size):
             neighbors.append(tile)
 
     return neighbors
+
+def compute_frontier_scores(visited):
+    size = visited.shape[0]
+    frontier_scores = np.zeros((size, size), dtype=float)
+
+    for i in range(size):
+        for j in range(size):
+            raw_score = 0
+            neighbors = get_neighbors((i, j), size)
+
+            for neighbor in neighbors:
+                x, y = neighbor
+                if not visited[x, y]:
+                    raw_score += 1
+
+            frontier_scores[i, j] = raw_score / len(neighbors)
+
+    return frontier_scores
 
 def parse_optimizer(parser):
     parser.add_argument('--test', type=bool, default=False)

@@ -24,6 +24,7 @@ class GridWorldEnv(gym.Env):
         self.num_agents = num_agents
         self.visited = np.zeros((size, size), dtype=bool)
         self._agent_locations = np.zeros((num_agents, 2), dtype=int)
+        self._num_tile_visits = np.zeros((size, size), dtype=int)
 
         self.observation_space = spaces.Dict({
             "agents": spaces.Box(low=0, high=size-1, shape=(num_agents, 2), dtype=int),
@@ -89,6 +90,7 @@ class GridWorldEnv(gym.Env):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
         self.visited = np.zeros((self.size, self.size), dtype=bool)
+        self._num_tile_visits = np.zeros((self.size, self.size), dtype=int)
 
         occupied_positions = set()
         # Randomize locations for all agents + ensure no overlap
@@ -102,6 +104,7 @@ class GridWorldEnv(gym.Env):
 
         for loc in self._agent_locations:
             self.visited[loc[0], loc[1]] = True
+            self._num_tile_visits[loc[0], loc[1]] += 1
 
         observation = self._get_obs()
         info = self._get_info()
@@ -137,14 +140,16 @@ class GridWorldEnv(gym.Env):
         # Mark the new position as visited + calc rewards
         for loc in self._agent_locations:
             if self.visited[loc[0], loc[1]]:
-                reward -= 0.5
+                dynamic_penalty = float(self._num_tile_visits[loc[0], loc[1]] * 0.5)
+                reward -= dynamic_penalty
             else:
                 reward += 1.0
             self.visited[loc[0], loc[1]] = True
+            self._num_tile_visits[loc[0], loc[1]] += 1
 
         terminated = bool(np.all(self.visited))
         if terminated:
-            reward += self.size
+            reward += self.size**2
 
         observation = self._get_obs()
         info = self._get_info()

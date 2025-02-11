@@ -3,82 +3,65 @@ from argparse import Namespace
 import torch
 import torch.nn as nn
 from gymnasium import spaces
+from gymnasium.wrappers import TimeLimit
 from stable_baselines3 import PPO
-from stable_baselines3.common.logger import Logger
+from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
+from models.Wrappers import CnnWrapper, TQDMCallback
 
-class CustomPPOExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space: spaces.Dict, grid_size: int, features_dim: int = 64):
+
+class CustomCNNFeatureExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space: spaces.Box, features_dim: int = 256):
+        assert len(observation_space.shape) == 3, "Expected 3D input (C,H,W)"
+        assert observation_space.shape[0] == 3, "Expected 3 channels: map, frontier, agent"
+
         super().__init__(observation_space, features_dim)
-        self.grid_size = grid_size
-        self.kernel_size = 5
-        self.stride = 1
 
         self.cnn = nn.Sequential(
-            nn.Conv2d(
-                in_channels=2,
-                out_channels=grid_size,
-                kernel_size=self.kernel_size,
-                stride=self.stride
-            ),
+            # Block 1: Conv2d -> BatchNorm2d -> ReLU -> MaxPool2d
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(
-                in_channels=grid_size,
-                out_channels=grid_size,
-                kernel_size=self.kernel_size,
-                stride=self.stride
-            ),
+            nn.MaxPool2d(kernel_size=2),
+
+            # Block 2: Conv2d -> BatchNorm2d -> ReLU
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
+
+            # Block 3: Conv2d -> BatchNorm2d -> ReLU
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+
             nn.Flatten()
         )
 
-        def convert_to_size(size, kernel_size=5, stride=1):
-            return (size - (kernel_size - 1) - 1) // stride + 1
+        with torch.no_grad():
+            n_flatten = self.cnn(torch.zeros(1, *observation_space.shape)).shape[1]
+        self.fc = nn.Linear(n_flatten, features_dim)
 
-        self.width = convert_to_size(convert_to_size(grid_size))
-        self.height = convert_to_size(convert_to_size(grid_size))
-
-        self.linear = nn.Sequential(
-            nn.Linear(grid_size * self.width * self.height, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, features_dim)
-        )
-
-    def create_agent_channel(self, robot_positions, batch_size):
-        agent_channel = torch.zeros((batch_size, self.grid_size, self.grid_size),
-                                    device=robot_positions.device)
-        for b in range(batch_size):
-            pos = robot_positions[b]  # Shape: (n_robots, 2)
-            agent_channel[b, pos[:, 0].long(), pos[:, 1].long()] = 1
-
-        return agent_channel
-
-    def forward(self, observations):
-        batch_size = observations['map'].shape[0]
-        grid_channel = observations['map'].float()
-        agent_channel = self.create_agent_channel(observations['agents'], batch_size)
-        x = torch.stack([grid_channel, agent_channel], dim=1)
-        cnn_features = self.cnn(x)
-        features = self.linear(cnn_features)
-
-        return features
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        return self.fc(self.cnn(observations))
 
 
 class CustomPPO(nn.Module):
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace, default: bool = False):
         super(CustomPPO, self).__init__()
         self.args = args
+        self.filename = "models/saved/Custom_PPO" if not default else "models/saved/Default_PPO"
         if args.test:
-            self.model = PPO.load("models/saved/Custom_PPO")
+            self.model = PPO.load(self.filename)
+        elif default:
+            self.model = PPO("MultiInputPolicy", args.env, verbose=0, device=args.device)
         else:
+            env = CnnWrapper(args.env, args.size)
             policy_kwargs = dict(
-                features_extractor_class=CustomPPOExtractor,
-                features_extractor_kwargs=dict(grid_size=args.size,features_dim=64),
+                features_extractor_class=CustomCNNFeatureExtractor,
+                features_extractor_kwargs=dict(features_dim=128),
             )
-            self.model = PPO("MultiInputPolicy", self.args.env, policy_kwargs=policy_kwargs, verbose=0,
+            self.model = PPO("CnnPolicy", env, policy_kwargs=policy_kwargs, verbose=0, device=args.device,
                              learning_rate=3e-4,
                              n_steps=2048,
                              batch_size=64,
@@ -91,11 +74,10 @@ class CustomPPO(nn.Module):
         action, _states = self.model.predict(x)
         return action
 
-    def learn(self, logger: Logger):
-        total_timesteps = 100000
+    def learn(self):
+        total_timesteps = 25000
         # curriculum_callback = CurriculumCallback(check_freq=10000,
         #                                          grid_size_start=self.args.size,
         #                                          grid_size_max=20)
-        self.model.set_logger(logger)
-        self.model.learn(total_timesteps=total_timesteps)
-        self.model.save("models/saved/Custom_PPO")
+        self.model.learn(total_timesteps=total_timesteps, callback=TQDMCallback(total_timesteps))
+        self.model.save(self.filename)
