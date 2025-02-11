@@ -129,6 +129,7 @@ class GridWorldEnv(gym.Env):
             if tuple(proposed_position) in occupied_positions:
                 # Collision detected, keep the agent in its current position (no-op)
                 new_agent_locations.append(self._agent_locations[i])
+                reward -= 0.5
             else:
                 # No collision, move to the new position
                 new_agent_locations.append(proposed_position)
@@ -140,8 +141,8 @@ class GridWorldEnv(gym.Env):
         # Mark the new position as visited + calc rewards
         for loc in self._agent_locations:
             if self.visited[loc[0], loc[1]]:
-                dynamic_penalty = float(self._num_tile_visits[loc[0], loc[1]] * 0.5)
-                reward -= dynamic_penalty
+                dynamic_penalty = float(self._num_tile_visits[loc[0], loc[1]] * 0.2)
+                reward -= max(dynamic_penalty, -1)
             else:
                 reward += 1.0
             self.visited[loc[0], loc[1]] = True
@@ -149,7 +150,7 @@ class GridWorldEnv(gym.Env):
 
         terminated = bool(np.all(self.visited))
         if terminated:
-            reward += self.size**2
+            reward += self.size
 
         observation = self._get_obs()
         info = self._get_info()
