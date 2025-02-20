@@ -35,6 +35,6 @@ class CustomPPO(nn.Module):
         return action
 
     def learn(self):
-        total_timesteps = 50000000
+        total_timesteps = 10000000
         self.model.learn(total_timesteps=total_timesteps, callback=TQDMCallback(total_timesteps))
         self.model.save(self.filename)
