@@ -29,8 +29,6 @@ def test(args, model):
     test_seed = args.seed + random.randint(1, 10000)
     game_env = gymnasium.make('gymnasium_env/' + args.env_name, render_mode="human", size=args.size,
                               num_agents=args.num_agents, cr=args.cr)
-    if model is CustomPPO or model is CustomDQN:
-        game_env = CnnWrapper(game_env, size=args.size)
     results = [[model, test_step(game_env, model, test_seed)]]
 
     baselines = [FrontierPolicy(args), RandomPolicy(args)]
