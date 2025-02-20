@@ -1,5 +1,6 @@
 from enum import Enum
 import gymnasium as gym
+import networkx as nx
 from gymnasium import spaces
 import pygame
 import numpy as np
@@ -23,12 +24,18 @@ class GridWorldEnv(gym.Env):
         self.cr = cr
         self.num_agents = num_agents
         self.visited = np.zeros((size, size), dtype=bool)
+        self._edge_list = []
+        self._adj_matrix = np.zeros((self.num_agents, self.num_agents), dtype=np.float32)
         self._agent_locations = np.zeros((num_agents, 2), dtype=int)
         self._num_tile_visits = np.zeros((size, size), dtype=int)
 
         self.observation_space = spaces.Dict({
             "agents": spaces.Box(low=0, high=size-1, shape=(num_agents, 2), dtype=int),
             "map": spaces.Box(low=0, high=1, shape=(size, size), dtype=bool),
+            "adj_matrix": spaces.Box(low=0, high=1, shape=(num_agents, num_agents), dtype=np.float32),
+            # "edges": spaces.Tuple((
+            #     spaces.MultiDiscrete([num_agents, num_agents]),
+            # ))
         })
 
         # We have 5 actions for each agent.
@@ -67,24 +74,20 @@ class GridWorldEnv(gym.Env):
                 dist = np.linalg.norm(self._agent_locations[i] - self._agent_locations[j])
                 if dist <= self.cr:
                     edges.append((i, j))  # Add undirected edge
+                    edges.append((j, i))
         return edges
 
     def _get_obs(self):
         return {
             "agents": self._agent_locations,
             "map": self.visited,
+            "adj_matrix": self._adj_matrix,
         }
 
     def _get_info(self):
         return {
             "coverage": np.sum(self.visited) / (self.size * self.size)
         }
-
-    # def update_grid_size(self, new_size):
-    #     """Update the environment's grid size and adjust observation spaces."""
-    #     self.size = new_size
-    #     self.observation_space = spaces.Box(low=0, high=new_size-1, shape=(self.num_agents*2 + new_size*2,), dtype=np.int64)
-    #     self.reset()
 
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
@@ -146,6 +149,17 @@ class GridWorldEnv(gym.Env):
                 reward += 1.0
             self.visited[loc[0], loc[1]] = True
             self._num_tile_visits[loc[0], loc[1]] += 1
+
+        G = nx.Graph()
+        G.add_nodes_from(range(self.num_agents))
+
+        self._edge_list = self._get_edges()
+        G.add_edges_from(self._edge_list)
+
+        self._adj_matrix = nx.to_numpy_array(G, nodelist=G.nodes, dtype=np.float32)
+
+        if not nx.is_connected(G):
+            reward -= 5.0
 
         terminated = bool(np.all(self.visited))
         if terminated:
@@ -217,7 +231,7 @@ class GridWorldEnv(gym.Env):
             )
 
         # test edges
-        edges = self._get_edges()
+        edges = self._edge_list
         for a, b in edges:
             pygame.draw.line(
                 canvas,
