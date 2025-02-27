@@ -132,6 +132,7 @@ class GridWorldEnv(gym.Env):
             if tuple(proposed_position) in occupied_positions:
                 # Collision detected, keep the agent in its current position (no-op)
                 new_agent_locations.append(self._agent_locations[i])
+                reward -= 0.5
             else:
                 # No collision, move to the new position
                 new_agent_locations.append(proposed_position)

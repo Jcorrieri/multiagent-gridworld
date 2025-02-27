@@ -15,7 +15,7 @@ class CustomPPO(nn.Module):
         if args.test:
             self.model = PPO.load(self.filename)
         elif default:
-            self.model = PPO("MultiInputPolicy", args.env, verbose=0, device=args.device)
+            self.model = PPO("MultiInputPolicy", args.env, verbose=0, ent_coef=0.01, device=args.device)
         else:
             policy_kwargs = dict(
                 features_extractor_class=GNNFeatureExtractor,
@@ -27,6 +27,7 @@ class CustomPPO(nn.Module):
                              batch_size=64,
                              n_epochs=10,
                              gamma=0.99,
+                             ent_coef=0.03,
                              gae_lambda=0.95,
                              clip_range=0.2)
 
