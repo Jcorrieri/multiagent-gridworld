@@ -38,7 +38,7 @@ def test(args, model):
     print("Results:\n------------------------------")
     for r in results:
         print("Model:", r[0])
-        print("Total Reward: {reward:0.2f}/{max_reward}".format(reward=r[1], max_reward=args.size**2 * 2))
+        print("Total Reward: {reward:0.2f}".format(reward=r[1]))
         print("------------------------------")
 
 def main():
