@@ -32,10 +32,7 @@ class GridWorldEnv(gym.Env):
         self.observation_space = spaces.Dict({
             "agents": spaces.Box(low=0, high=size-1, shape=(num_agents, 2), dtype=int),
             "map": spaces.Box(low=0, high=1, shape=(size, size), dtype=bool),
-            "adj_matrix": spaces.Box(low=0, high=1, shape=(num_agents, num_agents), dtype=np.float32),
-            # "edges": spaces.Tuple((
-            #     spaces.MultiDiscrete([num_agents, num_agents]),
-            # ))
+            # "adj_matrix": spaces.Box(low=0, high=1, shape=(num_agents, num_agents), dtype=np.float32),
         })
 
         # We have 5 actions for each agent.
@@ -81,7 +78,7 @@ class GridWorldEnv(gym.Env):
         return {
             "agents": self._agent_locations,
             "map": self.visited,
-            "adj_matrix": self._adj_matrix,
+            # "adj_matrix": self._adj_matrix,
         }
 
     def _get_info(self):
@@ -132,7 +129,6 @@ class GridWorldEnv(gym.Env):
             if tuple(proposed_position) in occupied_positions:
                 # Collision detected, keep the agent in its current position (no-op)
                 new_agent_locations.append(self._agent_locations[i])
-                reward -= 0.5
             else:
                 # No collision, move to the new position
                 new_agent_locations.append(proposed_position)
