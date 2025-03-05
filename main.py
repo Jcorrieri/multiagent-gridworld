@@ -29,8 +29,6 @@ def test(args, model):
     test_seed = args.seed + random.randint(1, 10000)
     game_env = gymnasium.make('gymnasium_env/' + args.env_name, render_mode="human", size=args.size,
                               num_agents=args.num_agents, cr=args.cr)
-    if model is CustomPPO or model is CustomDQN:
-        game_env = CnnWrapper(game_env, size=args.size)
     results = [[model, test_step(game_env, model, test_seed)]]
 
     baselines = [FrontierPolicy(args), RandomPolicy(args)]
@@ -40,7 +38,7 @@ def test(args, model):
     print("Results:\n------------------------------")
     for r in results:
         print("Model:", r[0])
-        print("Total Reward: {reward:0.2f}/{max_reward}".format(reward=r[1], max_reward=args.size**2 + args.size))
+        print("Total Reward: {reward:0.2f}".format(reward=r[1]))
         print("------------------------------")
 
 def main():
