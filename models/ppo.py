@@ -2,9 +2,10 @@ from argparse import Namespace
 
 import torch.nn as nn
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 
 from models.Wrappers import TQDMCallback
-from models.gnnppo import GNNFeatureExtractor
+from models.gnn_feat_extractor import GNNFeatureExtractor
 
 
 class CustomPPO(nn.Module):
@@ -24,15 +25,14 @@ class CustomPPO(nn.Module):
             )
 
         else:
-            policy_kwargs = dict(
-                features_extractor_class=GNNFeatureExtractor,
-                #features_extractor_kwargs=dict(hidden_dim=128, out_dim=64),
-            )
+            policy_kwargs = {
+                "features_extractor_class": GNNFeatureExtractor,
+            }
             self.model = PPO(
                 "MultiInputPolicy",
                 args.env,
-                policy_kwargs=policy_kwargs,
                 verbose=0,
+                policy_kwargs=policy_kwargs,
                 device=args.device,
                 learning_rate=3e-4,
                 n_steps=2048,
@@ -51,5 +51,14 @@ class CustomPPO(nn.Module):
 
     def learn(self):
         total_timesteps = 10000000
-        self.model.learn(total_timesteps=total_timesteps, callback=TQDMCallback(total_timesteps))
+
+        checkpoint_callback = CheckpointCallback(
+            save_freq=500000,
+            save_path="models/saved/ckpt/",
+            name_prefix=self.filename + "_ckpt_",
+        )
+
+        callback_list = CallbackList([checkpoint_callback, TQDMCallback(total_timesteps=total_timesteps)])
+
+        self.model.learn(total_timesteps=total_timesteps, callback=callback_list)
         self.model.save(self.filename)

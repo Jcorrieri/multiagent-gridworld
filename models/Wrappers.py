@@ -32,24 +32,6 @@ class CnnWrapper(ObservationWrapper):
         return state_tensor.numpy()
 
 
-# create larger grid environments incrementally
-class CurriculumCallback(BaseCallback):
-    def __init__(self, check_freq, grid_size_start=5, grid_size_max=25, verbose=1):
-        super().__init__(verbose)
-        self.check_freq = check_freq
-        self.grid_size_start = grid_size_start
-        self.grid_size_current = grid_size_start
-        self.grid_size_max = grid_size_max
-
-    def _on_step(self):
-        if self.n_calls % self.check_freq == 0:
-            if self.grid_size_current < self.grid_size_max:
-                self.grid_size_current += 1
-                self.training_env.env_method("update_grid_size",
-                                             self.grid_size_current)
-        return True
-
-
 class TQDMCallback(BaseCallback):
     def __init__(self, total_timesteps: int):
         super().__init__()

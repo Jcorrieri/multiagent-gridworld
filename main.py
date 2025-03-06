@@ -5,7 +5,6 @@ import gymnasium
 import torch
 
 import utils
-from models.Wrappers import CnnWrapper
 from models.benchmarks import FrontierPolicy, RandomPolicy
 from models.dqn_sb import CustomDQN
 from models.ppo import CustomPPO
@@ -55,8 +54,8 @@ def main():
     # env = Monitor(env)
     args.env = env
 
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     print("Using device:", device)
     args.device = device
 
