@@ -93,13 +93,24 @@ class GridWorldEnv(gym.Env):
         self._num_tile_visits = np.zeros((self.size, self.size), dtype=int)
 
         occupied_positions = set()
-        # Randomize locations for all agents + ensure no overlap
-        for i in range(self.num_agents):
+
+        first_agent_loc = tuple(self.np_random.integers(0, self.size, size=2))
+        self._agent_locations[0] = first_agent_loc
+        occupied_positions.add(first_agent_loc)
+
+        for i in range(1, self.num_agents):
             while True:
-                loc = tuple(self.np_random.integers(0, self.size, size=2))
-                if loc not in occupied_positions:
-                    self._agent_locations[i] = loc
-                    occupied_positions.add(loc)
+                dx = self.np_random.integers(-self.cr, self.cr + 1)
+                dy = self.np_random.integers(-self.cr, self.cr + 1)
+
+                new_x = min(max(first_agent_loc[0] + dx, 0), self.size - 1)
+                new_y = min(max(first_agent_loc[1] + dy, 0), self.size - 1)
+
+                new_loc = (new_x, new_y)
+
+                if new_loc not in occupied_positions:
+                    self._agent_locations[i] = new_loc
+                    occupied_positions.add(new_loc)
                     break
 
         for loc in self._agent_locations:
@@ -141,8 +152,8 @@ class GridWorldEnv(gym.Env):
         # Mark the new position as visited + calc rewards
         for loc in self._agent_locations:
             if self.visited[loc[0], loc[1]]:
-                dynamic_penalty = float(self._num_tile_visits[loc[0], loc[1]] * 0.2)
-                reward -= max(dynamic_penalty, -1)
+                dynamic_penalty = float(self._num_tile_visits[loc[0], loc[1]] * 0.5)
+                reward -= max(dynamic_penalty, -5)
             else:
                 reward += 1.0
             self.visited[loc[0], loc[1]] = True
@@ -171,6 +182,23 @@ class GridWorldEnv(gym.Env):
 
         return observation, reward, terminated, False, info
 
+    def _calc_color(self, num_visits: int) -> (int, int, int):
+        max_visits = self.size
+
+        white_color = np.array([255, 255, 255], dtype=np.float32)
+        first_visit_color = np.array([185, 235, 245], dtype=np.float32)
+        dark_color = np.array([20, 50, 50], dtype=np.float32)
+
+        if num_visits == 0:
+            return tuple(white_color.astype(int))
+        elif num_visits == 1:
+            return tuple(first_visit_color.astype(int))
+
+        factor = min((num_visits - 1) / (max_visits - 1), 1)
+        new_color = (1 - factor) * first_visit_color + factor * dark_color
+
+        return tuple(new_color.astype(int))
+
     def render(self):
         if self.render_mode == "rgb_array":
             return self._render_frame()
@@ -192,15 +220,14 @@ class GridWorldEnv(gym.Env):
         # First we draw the visited locations
         for i in range(self.size):
             for j in range(self.size):
-                if self.visited[i][j]:
-                    pygame.draw.rect(
-                        canvas,
-                        (87, 189, 209),
-                        pygame.Rect(
-                            pix_square_size * np.array([i, j]),
-                            (pix_square_size, pix_square_size),
-                        ),
-                    )
+                pygame.draw.rect(
+                    canvas,
+                    self._calc_color(int(self._num_tile_visits[i, j])),
+                    pygame.Rect(
+                        pix_square_size * np.array([i, j]),
+                        (pix_square_size, pix_square_size),
+                    ),
+                )
 
         # Agents
         for loc in self._agent_locations:
