@@ -12,16 +12,16 @@ class CustomPPO(nn.Module):
     def __init__(self, args: Namespace, default: bool = False):
         super(CustomPPO, self).__init__()
         self.args = args
-        self.filename = "models/saved/Custom_PPO" if args.model_path is None else args.model_path
+        self.model_name = args.model_name
         if args.test:
-            self.model = PPO.load(self.filename)
+            self.model = PPO.load("models/saved/"+self.model_name)
         elif default:
             self.model = PPO(
                 "MultiInputPolicy",
                 args.env,
                 verbose=0,
                 device=args.device,
-                tensorboard_log = "models/saved/logs/"
+                tensorboard_log = "models/saved/logs/"+self.model_name+"/",
             )
 
         else:
@@ -38,7 +38,7 @@ class CustomPPO(nn.Module):
                 n_steps=2048,
                 batch_size=64,
                 n_epochs=10,
-                tensorboard_log="models/saved/logs/",
+                tensorboard_log="models/saved/logs/"+self.model_name+"/",
                 gamma=0.99,
                 ent_coef=0.03,
                 gae_lambda=0.95,
@@ -55,10 +55,10 @@ class CustomPPO(nn.Module):
         checkpoint_callback = CheckpointCallback(
             save_freq=500000,
             save_path="models/saved/ckpt/",
-            name_prefix=self.filename + "_ckpt_",
+            name_prefix=self.model_name+"_ckpt_",
         )
 
         callback_list = CallbackList([checkpoint_callback, TQDMCallback(total_timesteps=total_timesteps)])
 
         self.model.learn(total_timesteps=total_timesteps, callback=callback_list)
-        self.model.save(self.filename)
+        self.model.save(self.model_name)
