@@ -46,13 +46,13 @@ def main():
     utils.parse_optimizer(parser)
     args = parser.parse_args()
     size = args.size
-    num_agents = args.num_agents
+    num_robots = args.num_agents
     cr = args.cr  # communication range
 
-    if num_agents > (size * size):
+    if num_robots > (size * size):
         raise ValueError('Too many agents for given map size')
-    env = gymnasium.make('gymnasium_env/'+args.env_name, size=size, render_mode='rgb_array', num_agents=num_agents, cr=cr)
-    # env = TimeLimit(env, max_episode_steps=size**2)
+    env = gymnasium.make('gymnasium_env/'+args.env_name, size=size, render_mode='rgb_array', num_agents=num_robots, cr=cr)
+    env = TimeLimit(env, max_episode_steps=(size**2)*num_robots)
     args.env = env
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

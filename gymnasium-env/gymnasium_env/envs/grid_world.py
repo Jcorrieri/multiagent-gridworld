@@ -24,15 +24,15 @@ class GridWorldEnv(gym.Env):
 
         self.cr = cr
         self.num_robots = num_agents
-        self.visited = np.zeros((size, size), dtype=int)
+        self.visited = np.zeros((size, size), dtype=np.float64)
         self._edge_list = []
-        self._adj_matrix = np.zeros((self.num_robots, self.num_robots), dtype=np.float32)
+        self._adj_matrix = np.zeros((self.num_robots, self.num_robots), dtype=int)
         self._robot_locations = np.zeros((num_agents, 2), dtype=int)
 
         self.observation_space = spaces.Dict({
             "agents": spaces.Box(low=0, high=size-1, shape=(num_agents, 2), dtype=int),
-            "map": spaces.Box(low=0, high=1, shape=(size, size), dtype=int),
-            "adj_matrix": spaces.Box(low=0, high=1, shape=(num_agents, num_agents), dtype=np.float32),
+            "map": spaces.Box(low=0, high=1, shape=(size, size), dtype=np.float64),
+            "adj_matrix": spaces.Box(low=0, high=1, shape=(num_agents, num_agents), dtype=int),
         })
 
         # We have 5 actions for each agent.
@@ -65,7 +65,7 @@ class GridWorldEnv(gym.Env):
         self.clock = None
 
     def _build_adj_matrix(self):
-        self._adj_matrix = np.zeros((self.num_robots, self.num_robots), dtype=int)
+        self._adj_matrix = np.zeros((self.num_robots, self.num_robots), dtype=np.int64)
         for i in range(self.num_robots):
             for j in range(i + 1, self.num_robots):
                 dist = np.linalg.norm(self._robot_locations[i] - self._robot_locations[j])
@@ -88,7 +88,7 @@ class GridWorldEnv(gym.Env):
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
-        self.visited = np.zeros((self.size, self.size), dtype=int)
+        self.visited = np.zeros((self.size, self.size), dtype=np.float64)
 
         occupied_positions = set()
 
@@ -155,8 +155,8 @@ class GridWorldEnv(gym.Env):
         G = nx.from_numpy_array(self._adj_matrix)
         self._edge_list = G.edges
 
-        if nx.is_connected(G):
-            reward += 1 + np.log(self.num_robots)
+        if not nx.is_connected(G):
+            reward -= 1 + np.log(self.num_robots)
 
         terminated = bool(np.all(self.visited))
         if terminated:
