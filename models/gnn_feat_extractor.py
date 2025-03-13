@@ -72,26 +72,36 @@ class GNNFeatureExtractor(BaseFeaturesExtractor):
         pos_features = self.robot_encoder(agents_pos)  # [batch_size, num_agents, 32]
 
         # Extract local map features for each robot
-        local_map_features = []
-        for b in range(batch_size):
-            robot_map_features = []
-            for i in range(self.num_agents):
-                x, y = agents_pos[b, i].long()
-                local_feature = map_features[b, :, x, y]  # [32]
-                robot_map_features.append(local_feature)
-            local_map_features.append(torch.stack(robot_map_features))
-        local_map_features = torch.stack(local_map_features)  # [batch_size, num_agents, 32]
+        x_idx = agents_pos[:, :, 0].long()
+        y_idx = agents_pos[:, :, 1].long()
+        local_map_features = map_features[torch.arange(batch_size)[:, None], :, x_idx, y_idx]
 
         # Combine position and local map features
         node_features = torch.cat([pos_features, local_map_features], dim=2)  # [batch_size, num_agents, 32+32]
         node_features = node_features.view(batch_size * self.num_agents, -1)  # [batch_size * num_agents, 64]
 
-        # Process adjacency matrix into edge indices
-        edge_indices = []
+        # Assuming adj_matrix has shape [batch_size, num_agents, num_agents]
+        batch_size, num_agents, _ = adj_matrix.shape
+
+        # Process each batch separately
+        all_edges = []
         for b in range(batch_size):
-            edge_index, _ = dense_to_sparse(adj_matrix[b])
-            edge_indices.append(edge_index + b * self.num_agents)
-        edge_index = torch.cat(edge_indices, dim=1)  # [2, num_edges]
+            # Get adjacency matrix for this batch
+            batch_adj = adj_matrix[b]
+
+            # Convert to sparse format
+            batch_edges, _ = dense_to_sparse(batch_adj)
+
+            # Offset the indices to account for batch position
+            batch_offset = b * num_agents
+            batch_edges = batch_edges + batch_offset
+
+            # Add to our collection
+            all_edges.append(batch_edges)
+
+        # Combine all edges into a single edge_index tensor
+        # This creates a block-diagonal structure
+        edge_index = torch.cat(all_edges, dim=1)
 
         # Apply GNN layers
         x = F.relu(self.conv1(node_features, edge_index))
