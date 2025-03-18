@@ -3,6 +3,7 @@ import random
 
 import gymnasium
 import torch
+from gymnasium.wrappers import TimeLimit
 
 import utils
 from models.benchmarks import FrontierPolicy, RandomPolicy
@@ -27,7 +28,7 @@ def test(args, model):
     print("Testing...")
     test_seed = args.seed + random.randint(1, 10000)
     game_env = gymnasium.make('gymnasium_env/' + args.env_name, render_mode="human", size=args.size,
-                              num_agents=args.num_agents, cr=args.cr)
+                              num_agents=args.num_robots, cr=args.cr)
     results = [[model, test_step(game_env, model, test_seed)]]
 
     baselines = [FrontierPolicy(args), RandomPolicy(args)]
@@ -45,13 +46,13 @@ def main():
     utils.parse_optimizer(parser)
     args = parser.parse_args()
     size = args.size
-    num_agents = args.num_agents
+    num_robots = args.num_agents
     cr = args.cr  # communication range
 
-    if num_agents > (size * size):
+    if num_robots > (size * size):
         raise ValueError('Too many agents for given map size')
-    env = gymnasium.make('gymnasium_env/'+args.env_name, size=size, render_mode='rgb_array', num_agents=num_agents, cr=cr)
-    # env = Monitor(env)
+    env = gymnasium.make('gymnasium_env/'+args.env_name, size=size, render_mode='rgb_array', num_agents=num_robots, cr=cr)
+    env = TimeLimit(env, max_episode_steps=(size**2)*num_robots)
     args.env = env
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
