@@ -2,7 +2,7 @@ from argparse import Namespace
 import numpy as np
 import torch.nn as nn
 import utils
-from gymnasium_env.envs.grid_world import Actions
+from env.grid_world import Actions
 
 
 class RandomPolicy(nn.Module):
