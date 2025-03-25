@@ -1,8 +1,9 @@
 import argparse
+import warnings
 
 import numpy as np
 import torch
-from ray.rllib.algorithms import Algorithm, PPO
+from ray.rllib.algorithms import Algorithm
 from ray.rllib.env import ParallelPettingZooEnv
 from ray.rllib.models import ModelCatalog
 from ray.tune import register_env
@@ -16,21 +17,25 @@ from utils import build_config
 def train(args: argparse.Namespace, env_config: dict) -> None:
     trainer = build_config(env_config)
 
-    print(f"Training Parameters:\n--------------------\n{args}")
+    print("Training Parameters:")
+    print("-"*100 + f"\n{args}")
     print("Model: ", trainer.get_policy("shared_policy").model)
-    print("--------------------\nTraining...")
+    print("-"*100 + "\nTraining...")
 
     max_rew_epi_count = 0
     best_score = -np.inf
     for i in range(args.num_episodes):
         result = trainer.train()
 
-        print(f"Episode {i}: reward = {result['episode_reward_mean']}, length: {result['episode_len_mean']}")
+        episode_reward_mean = result["env_runners"]['episode_reward_mean']
+        episode_len_mean = result["env_runners"]['episode_len_mean']
+        print("\rEpisode {i}/{args.num_episodes}, total reward = {episode_reward_mean:.2f}, "
+              "average length: {episode_len_mean}".format_map(locals()), end="")
 
-        # Stop training if the average reward reaches 200
-        if result["episode_reward_mean"] >= 500:
-            if result["episode_reward_mean"] > best_score:
-                best_score = result["episode_reward_mean"]
+        # Stop training if the average reward reaches 200 per agent
+        if episode_reward_mean >= (200 * args.num_agents):
+            if episode_reward_mean > best_score:
+                best_score = episode_reward_mean
                 trainer.save_checkpoint("models/ckpt")
             max_rew_epi_count += 1
             if max_rew_epi_count >= 20:
@@ -41,7 +46,7 @@ def train(args: argparse.Namespace, env_config: dict) -> None:
 
     trainer.save("models/saved/mppo")
 
-def test_one_episode(env: ParallelPettingZooEnv, model: Algorithm, seed: int) -> float:
+def test_one_episode(env: ParallelPettingZooEnv, model, seed: int) -> float:
     observations, _ = env.reset(seed=seed)
     episode_over = False
     total_reward = 0.0
@@ -64,23 +69,14 @@ def test_one_episode(env: ParallelPettingZooEnv, model: Algorithm, seed: int) ->
 
     return total_reward
 
-def test(args, env_config: dict) -> None:
-    # Create the test environment
-    env_config["render_mode"] = "human"
-    game_env = ParallelPettingZooEnv(GridWorldEnv(**env_config))
+def test(args) -> None:
+    tester = Algorithm.from_checkpoint(args.model_path)
+    tester.config.env_config["render_mode"] = "human"
 
-    tester = build_config(env_config)
-    tester.restore(args.model_path)
-
-    print("Testing...")
+    print("Testing Parameters:")
+    print("-" * 100 + f"\n{args}")
     print("Model: ", tester.get_policy("shared_policy").model)
-
-    reward = test_one_episode(game_env, tester, seed=args.seed)
-
-    game_env.close()
-
-    print("Results:\n------------------------------")
-    print(f"Reward: {reward}")
+    print("-" * 100)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -126,7 +122,8 @@ def main():
     if not args.test:
         train(args, env_config)
     else:
-        test(args, env_config)
+        test(args)
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
     main()
