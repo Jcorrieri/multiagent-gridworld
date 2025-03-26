@@ -1,25 +1,30 @@
 import argparse
+import os.path
 import warnings
 
 import numpy as np
 import torch
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.env import ParallelPettingZooEnv
-from ray.rllib.models import ModelCatalog
 from ray.tune import register_env
+from torch.utils.checkpoint import checkpoint
 
 import utils
 from env.grid_world import GridWorldEnv
-from models.cnn import SharedCNNModel
 from utils import build_config
 
 
-def train(args: argparse.Namespace, env_config: dict) -> None:
-    trainer = build_config(env_config)
+def train(args: argparse.Namespace, env_config: dict, old_api_stack: bool = True) -> None:
+    trainer = build_config(env_config, old_api_stack)
+
+    if old_api_stack:
+        model = trainer.get_policy("shared_policy").model
+    else:
+        model = trainer.get_module("shared_policy").model
 
     print("Training Parameters:")
     print("-"*100 + f"\n{args}")
-    print("Model: ", trainer.get_policy("shared_policy").model)
+    print("Model: ", model)
     print("-"*100 + "\nTraining...")
 
     max_rew_epi_count = 0
@@ -44,22 +49,30 @@ def train(args: argparse.Namespace, env_config: dict) -> None:
         else:
             max_rew_epi_count = 0
 
-    trainer.save("models/saved/mppo")
+    trainer.save(args.model_path)
 
-def test_one_episode(env: ParallelPettingZooEnv, model, seed: int) -> float:
+def test_one_episode(env: ParallelPettingZooEnv, seed: int, model: Algorithm = None) -> float:
+    """Training loop for one episode, taken from Ray official documentation"""
     observations, _ = env.reset(seed=seed)
     episode_over = False
     total_reward = 0.0
 
     while not episode_over:
         actions = {}
-        for agent_id in env.get_agent_ids():
-            if agent_id in observations:
-                actions[agent_id] = model.compute_single_action(
-                    observations[agent_id],
-                    policy_id="shared_policy",
-                    explore=False,
-                )
+
+        for agent_id, agent_obs in observations.items():
+            rl_module = model.get_module(agent_id) # get agent policy
+
+            # Batch the observation (B=1)
+            obs_batch = torch.from_numpy(agent_obs).unsqueeze(0)
+
+            # Run inference
+            model_outputs = rl_module.forward_inference({"obs": obs_batch})
+            action_dist_params = model_outputs["action_dist_inputs"][0].numpy()
+
+            action = int(np.argmax(action_dist_params))
+
+            actions[agent_id] = action
 
         observations, rewards, terminated, truncated, infos = env.step(actions)
 
@@ -69,14 +82,21 @@ def test_one_episode(env: ParallelPettingZooEnv, model, seed: int) -> float:
 
     return total_reward
 
-def test(args) -> None:
-    tester = Algorithm.from_checkpoint(args.model_path)
-    tester.config.env_config["render_mode"] = "human"
+def test(args, env_config) -> None:
+    env_config["render_mode"] = "human"
+    game_env = ParallelPettingZooEnv(GridWorldEnv(**env_config))
+
+    checkpoint_dir = os.path.abspath(args.model_path)
+    tester = Algorithm.from_checkpoint(checkpoint_dir)
 
     print("Testing Parameters:")
     print("-" * 100 + f"\n{args}")
     print("Model: ", tester.get_policy("shared_policy").model)
     print("-" * 100)
+
+    test_one_episode(game_env, args.seed, tester)
+
+    game_env.close()
 
 def main():
     parser = argparse.ArgumentParser()
@@ -111,7 +131,6 @@ def main():
     }
 
     # for rllib
-    ModelCatalog.register_custom_model("shared_cnn", SharedCNNModel)
     register_env("grid_world", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(**cfg)))
 
     # env = GridWorldEnv(obs_mat=obs_mat, render_mode="human")
@@ -122,7 +141,7 @@ def main():
     if not args.test:
         train(args, env_config)
     else:
-        test(args)
+        test(args, env_config)
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=DeprecationWarning)

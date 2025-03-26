@@ -95,6 +95,7 @@ class GridWorldEnv(ParallelEnv):
     def observation_spaces(self):
         return {agent: self.observation_space(agent) for agent in self.agents}
 
+    # For Ray RLlib
     @property
     def action_spaces(self):
         return {agent: self.action_space(agent) for agent in self.agents}

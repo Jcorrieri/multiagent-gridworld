@@ -1,16 +1,72 @@
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.algorithms.ppo import PPOConfig, PPOTorchPolicy
 from ray.rllib.core.rl_module import MultiRLModuleSpec, RLModuleSpec
+from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
 
+from env.grid_world import GridWorldEnv
+from models.rl_wrappers import CustomTorchModelV2, CustomRLModule
 
-def build_config(env_config: dict) -> Algorithm:
+
+def build_config(env_config: dict, old_api_stack: bool = False) -> Algorithm:
+    ppo_params = {
+        'gamma': 0.9,
+        'lr': 1e-3,
+        'grad_clip': 1.0,
+        'train_batch_size_per_learner': 500, # train_batch_size
+        'minibatch_size': 200,
+    }
+
+    if old_api_stack:
+        config = use_old_API_stack(env_config, ppo_params)
+    else:
+        config = use_new_API_stack(env_config, ppo_params)
+
+    print("Multi-Agent Config:", config.is_multi_agent)
+
+    return config.build_algo()
+
+def use_new_API_stack(env_config: dict, ppo_params: dict) -> PPOConfig:
+    dummy_env = GridWorldEnv(**env_config)
+
     config = (
         PPOConfig()
         .environment(
             env="grid_world",
             env_config=env_config,
-            render_env=False,
+            is_atari=False,
+        )
+        .framework("torch")
+        .multi_agent(
+            policies={"shared_policy": PolicySpec()},
+            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy",
+        )
+        .training(**ppo_params)
+        .rl_module(
+            rl_module_spec=MultiRLModuleSpec(
+                rl_module_specs={
+                    "shared_policy": RLModuleSpec(
+                        module_class=CustomRLModule,
+                        observation_space=dummy_env.observation_space("agent_0"),
+                        action_space=dummy_env.action_space("agent_0"),
+                        model_config={}
+                    )
+                }
+            )
+        )
+    )
+    dummy_env.close()
+
+    return config
+
+def use_old_API_stack(env_config: dict, ppo_params: dict) -> PPOConfig:
+    ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
+
+    config = (
+        PPOConfig()
+        .environment(
+            env="grid_world",
+            env_config=env_config,
             is_atari=False,
         )
         .framework("torch")
@@ -21,13 +77,8 @@ def build_config(env_config: dict) -> Algorithm:
         .training(
             model={
                 "custom_model": "shared_cnn",
-                "vf_share_layers": False
             },
-            gamma=0.9, # match MATLAB
-            lr=1e-3, # match MATLAB
-            grad_clip=1.0, # match MATLAB
-            train_batch_size_per_learner=500, # match MATLAB
-            minibatch_size=200, # match MATLAB
+            **ppo_params
         )
         .api_stack(
             enable_env_runner_and_connector_v2=False,
@@ -35,15 +86,13 @@ def build_config(env_config: dict) -> Algorithm:
         )
     )
 
-    print("Multi-Agent Config:", config.is_multi_agent)
-
-    return config.build_algo()
+    return config
 
 def parse_optimizer(parser):
     parser.add_argument('--test', type=bool, default=False)
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--model_path', type=str, default='models/saved/mppo')
-    parser.add_argument('--num_episodes', type=int, default=1000)
+    parser.add_argument('--seed', type=int, default=13)
+    parser.add_argument('--model_path', type=str, default='models/saved/mppo_2')
+    parser.add_argument('--num_episodes', type=int, default=500)
     parser.add_argument('--obs_mat_path', type=str, default='env/obstacle_mats/mat1')
     parser.add_argument('--max_steps', type=int, default=1000)
     parser.add_argument('--size', type=int, default=12)
