@@ -43,7 +43,11 @@ class GridWorldEnv(ParallelEnv):
         self.grid = np.zeros((size, size), dtype=np.int8)
         self._adj_matrix = np.zeros((num_agents, num_agents), dtype=int)
         self._agent_locations = np.zeros((num_agents, 2), dtype=int)
-        self._obs_mat = obs_mat  # array of shape (size, 2), 1-indexed
+
+        if obs_mat is not None:
+            self._obs_mat = [(self.size - r - 1, c) for (r, c) in obs_mat]  # np and pygame use different origin
+        else:
+            self._obs_mat = []
 
         self._action_to_direction = {
             Actions.right.value: np.array([0, 1]),
@@ -95,6 +99,7 @@ class GridWorldEnv(ParallelEnv):
     def observation_spaces(self):
         return {agent: self.observation_space(agent) for agent in self.agents}
 
+    # For Ray RLlib
     @property
     def action_spaces(self):
         return {agent: self.action_space(agent) for agent in self.agents}
@@ -127,15 +132,29 @@ class GridWorldEnv(ParallelEnv):
         self.max_coverage = self.size**2 - len(self._obs_mat)
 
         for i, (row, col) in enumerate(self._obs_mat):
-            row = self.size - row - 1 # zero indexed, np and pygame flip coords
             self.grid[row, col] = -1
-            self._obs_mat[i] = (row, col)
-
         occupied_positions = set(self._obs_mat)
+
+        placed_agents = []
         for i in range(self._num_agents):
             while True:
-                x = self.rng.integers(0, self.size)
-                y = self.rng.integers(0, self.size)
+                if len(placed_agents) == 0:  # place first agent
+                    x, y = self.rng.integers(0, self.size, 2)
+                else:
+                    # place others within range of another agent
+                    ref_x, ref_y = placed_agents[self.rng.integers(len(placed_agents))]
+
+                    # Sample a position within Euclidean distance ≤ cr
+                    for _ in range(100):
+                        dx, dy = self.rng.integers(-self.cr, self.cr + 1, 2)
+                        if np.linalg.norm([dx, dy]) <= self.cr:
+                            x, y = ref_x + dx, ref_y + dy
+                            break
+                    else:
+                        continue  # if no valid offset found in 100 tries, retry placement
+
+                    x, y = min(max(x, 0), self.size - 1), min(max(y, 0), self.size - 1)
+
                 if (x, y) not in occupied_positions:
                     self._agent_locations[i] = np.array([x, y])
                     occupied_positions.add((x, y))
@@ -146,7 +165,6 @@ class GridWorldEnv(ParallelEnv):
 
         self._build_adj_matrix()
 
-        # Generate observations for each agent
         observations = {}
         infos = {}
         for i, agent in enumerate(self.agents):
