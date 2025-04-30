@@ -1,13 +1,28 @@
-from typing import Any
+from collections import defaultdict
 
-from ray.rllib.core import Columns
-from ray.rllib.core.rl_module.multi_rl_module import MultiRLModule
-from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
-from ray.rllib.core.rl_module.torch.torch_rl_module import TorchRLModule
-from ray.rllib.utils.annotations import override
+import torch
 import torch.nn as nn
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
+from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+from ray.rllib.utils.annotations import override
 
 from models.cnn import ActorCriticCNNModel
+
+
+class AgentRewardAndLengthLogger(DefaultCallbacks):
+    def __init__(self):
+        super().__init__()
+        self.agent_episode_rewards = defaultdict(list)  # agent_id → list of total episode rewards
+        self.episode_lengths = []  # list of episode lengths
+
+    def on_episode_end(self, *, worker, episode, **kwargs):
+        # Track reward per agent
+        for agent_id in episode.agent_rewards:
+            total_reward = sum(r for (_, r) in episode.agent_rewards[agent_id])
+            self.agent_episode_rewards[agent_id].append(total_reward)
+
+        # Track episode length
+        self.episode_lengths.append(episode.length)
 
 
 class CustomTorchModelV2(TorchModelV2, nn.Module):
@@ -20,7 +35,8 @@ class CustomTorchModelV2(TorchModelV2, nn.Module):
 
     @override(TorchModelV2)
     def forward(self, input_dict, state, seq_lens):
-        obs = input_dict["obs"]
+        device = next(self.parameters()).device
+        obs = input_dict["obs"].float().to(device)
         logits, value = self.network(obs)
         self._value_out = value
         return logits, state
@@ -28,23 +44,3 @@ class CustomTorchModelV2(TorchModelV2, nn.Module):
     @override(TorchModelV2)
     def value_function(self):
         return self._value_out.squeeze(1)
-
-
-class CustomRLModule(TorchRLModule):
-    def setup(self):
-        self.model = ActorCriticCNNModel(
-            obs_space=self.observation_space,
-            num_outputs=self.action_space.n
-        )
-
-    def _forward(self, batch, **kwargs) -> dict[str, Any]:
-        obs_batch = batch[Columns.OBS]
-        logits, value = self.model(obs_batch)
-        self._value_out = value.view(-1)
-        return {
-            Columns.ACTION_DIST_INPUTS: logits,
-            Columns.VF_PREDS: self._value_out,
-        }
-
-    def value_function(self):
-        return self._value_out

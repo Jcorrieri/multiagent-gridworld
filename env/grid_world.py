@@ -89,8 +89,8 @@ class GridWorldEnv(ParallelEnv):
             if i != agent_idx:
                 obs[pos[0], pos[1], 2] = 1.0
 
-        # Layer 3: Binary coverage map (1 = visited, 0 = unvisited)
-        obs[:, :, 3] = (self.grid > 0).astype(np.float32)
+        # Layer 3: Binary coverage map (1 = visited, 0 = unvisited, -1 = obstacle (count as visited))
+        obs[:, :, 3] = (self.grid != 0).astype(np.float32)
 
         return obs
 
@@ -142,22 +142,21 @@ class GridWorldEnv(ParallelEnv):
                     x, y = self.rng.integers(0, self.size, 2)
                 else:
                     # place others within range of another agent
-                    ref_x, ref_y = placed_agents[self.rng.integers(len(placed_agents))]
+                    ref_agent = placed_agents[0]
 
-                    # Sample a position within Euclidean distance ≤ cr
-                    for _ in range(100):
-                        dx, dy = self.rng.integers(-self.cr, self.cr + 1, 2)
-                        if np.linalg.norm([dx, dy]) <= self.cr:
-                            x, y = ref_x + dx, ref_y + dy
-                            break
-                    else:
-                        continue  # if no valid offset found in 100 tries, retry placement
+                    delta_arr = np.array(self.rng.integers(-self.cr, self.cr + 1, 2))
+                    new_agent = ref_agent + delta_arr
 
+                    if np.linalg.norm(ref_agent - new_agent) >= self.cr:
+                        continue
+
+                    x, y = new_agent
                     x, y = min(max(x, 0), self.size - 1), min(max(y, 0), self.size - 1)
 
                 if (x, y) not in occupied_positions:
                     self._agent_locations[i] = np.array([x, y])
                     occupied_positions.add((x, y))
+                    placed_agents.append(np.array([x, y]))
                     break
 
         for pos in self._agent_locations:
@@ -209,6 +208,10 @@ class GridWorldEnv(ParallelEnv):
 
         self._agent_locations = np.array(new_positions)
 
+        self._build_adj_matrix()
+        G = nx.from_numpy_array(self._adj_matrix)
+        connected = nx.is_connected(G)
+
         # Calculate rewards
         for i, agent in enumerate(self.agents):
             current_pos = self._agent_locations[i]
@@ -216,17 +219,19 @@ class GridWorldEnv(ParallelEnv):
 
             # Check if the agent moved
             if not np.array_equal(current_pos, previous_pos):
-                if self.grid[current_pos[0], current_pos[1]] == 0:
+                if self.grid[current_pos[0], current_pos[1]] == 0 and connected:
                     rewards[agent] += 2.0
+                elif self.grid[current_pos[0], current_pos[1]] == 0:
+                    rewards[agent] -= 0.5
+                elif connected:
+                    rewards[agent] -= 0.2
                 else:
-                    rewards[agent] -= 0.05
+                    rewards[agent] -= 0.5
 
                 self.grid[current_pos[0], current_pos[1]] = 1
             else:
                 # collision or no-op
                 rewards[agent] -= 1
-
-        self._build_adj_matrix()
 
         observations = {}
         infos = {}

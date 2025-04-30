@@ -8,15 +8,11 @@ class ActorCriticCNNModel(nn.Module):
 
         h, w, c = obs_space.shape  # HWC
 
-        kernel_size = 3
-        stride = 2
-
         self.conv = nn.Sequential(
-            nn.ConstantPad2d(1, -1),  # Pad 1 pixel border with -1s (like MATLAB)
-            nn.Conv2d(in_channels=c, out_channels=16, kernel_size=kernel_size, stride=stride, padding=0),
+            nn.Conv2d(in_channels=c, out_channels=16, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=kernel_size, stride=stride, padding=1),
-            nn.Flatten(),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            nn.Flatten()
         )
 
         with torch.no_grad():
@@ -35,8 +31,7 @@ class ActorCriticCNNModel(nn.Module):
         self.critic_head = nn.Linear(256, 1)
 
     def forward(self, obs):
-        obs = obs.float()
-        if obs.ndim == 4 and obs.shape[1] != 3:
+        if obs.ndim == 4 and obs.shape[1] != 4:
             obs = obs.permute(0, 3, 1, 2)
         x = self.conv(obs)
         x = self.linear(x)
