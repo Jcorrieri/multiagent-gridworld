@@ -11,6 +11,8 @@ from gymnasium import spaces
 import pygame
 import numpy as np
 from pettingzoo.utils.env import AgentID
+from sympy import false
+
 
 class Actions(Enum):
     right = 0
@@ -24,7 +26,7 @@ class GridWorldEnv(ParallelEnv):
     metadata = {
         "name": "GridWorldEnv_v0",
         "render_modes": ["human", "rgb_array"],
-        "render_fps": 24
+        "render_fps": 12
     }
 
     def __init__(self, render_mode=None, size=12, num_agents=3, cr=3, max_steps=1000, obs_mat=None):
@@ -239,7 +241,8 @@ class GridWorldEnv(ParallelEnv):
             observations[agent] = self._generate_observation(i)
             infos[agent] = {
                 "coverage": np.sum(self.grid > 0) / self.max_coverage,
-                "step": self.timestep
+                "step": self.timestep,
+                "connection_broken": not connected
             }
 
         all_visited = np.sum(self.grid > 0) == self.max_coverage

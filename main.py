@@ -65,8 +65,31 @@ def train(args: argparse.Namespace, env_config: dict, old_api_stack: bool = True
     trainer.save(save_path)
     plot_metrics(data, args.model_name if i == 0 else f'{args.model_name}_{i}')
 
+def test_one_episode(test_env: ParallelPettingZooEnv, seed: int | None, model: Algorithm):
+    observations, _ = test_env.reset(seed=seed)
+    episode_over = False
+    total_reward, steps, num_breaks = 0, 0, 0
+    while not episode_over:
+        actions = {
+            agent: model.compute_single_action(
+                observations[agent],
+                policy_id="shared_policy",
+                explore=True
+            )
+            for agent in observations
+        }
+
+        observations, rewards, terminated, truncated, infos = test_env.step(actions)
+
+        total_reward += sum(rewards.values())
+        steps += 1
+        if infos['agent_0']['connection_broken']:
+            num_breaks += 1
+
+        episode_over = terminated.get("__all__", False) or truncated.get("__all__", False)
+    return total_reward, steps, num_breaks
+
 def test(args, env_config) -> None:
-    env_config["render_mode"] = "human"
     game_env = ParallelPettingZooEnv(GridWorldEnv(**env_config))
 
     checkpoint_dir = os.path.abspath(f"models/saved/{args.model_name}")
@@ -78,29 +101,38 @@ def test(args, env_config) -> None:
     print("Model: ", tester.get_policy("shared_policy").model)
     print("-" * 100)
 
-    observations, _ = game_env.reset(seed=args.seed)
-    episode_over = False
-    total_reward = 0.0
-    steps = 0
-    while not episode_over:
-        actions = {
-            agent: tester.compute_single_action(
-                observations[agent],
-                policy_id="shared_policy",
-                explore=True
-            )
-            for agent in observations
-        }
+    def pretty_print(title: str, rew: float, stp: int, brk: int):
+        print("-"*40)
+        print(f"| {title:<36} |")
+        print(f"| {'Reward:':<20} {round(rew, 2):>15} |")
+        print(f"| {'Steps:':<20} {stp:>15} |")
+        print(f"| {'Num Disconnects:':<20} {brk:>15} |")
+        print(f"| {'Percentage Connected:':<20} {round(100 * (1 - (brk / stp)), 2):>13}% |")
+        print("-"*40)
 
-        observations, rewards, terminated, truncated, infos = game_env.step(actions)
+    env_config["render_mode"] = "human"
+    demo_env = ParallelPettingZooEnv(GridWorldEnv(**env_config))
 
-        total_reward += sum(rewards.values())
-        steps += 1
+    reward, steps, num_breaks = test_one_episode(demo_env, args.seed, tester)
+    demo_env.close()
 
-        episode_over = terminated.get("__all__", False) or truncated.get("__all__", False)
+    pretty_print(f"Metrics for Demo Episode [Seed={args.seed}]", reward, steps, num_breaks)
+    print("Running 30 more test episodes...")
+
+    total_reward, total_steps, total_breaks = 0, 0, 0
+    for i in range(30):
+        print(f"\r{i}/30", end="")
+        reward, steps, num_breaks = test_one_episode(game_env, seed=None, model=tester)
+        total_reward += reward
+        total_steps += steps
+        total_breaks += num_breaks
+    avg_reward = total_reward / 10
+    avg_steps = total_steps // 10
+    avg_breaks = total_breaks // 10
 
     game_env.close()
-    print(f"Reward: {total_reward}, Steps: {steps}")
+
+    pretty_print("Averages Over 10 Test Episodes", avg_reward, avg_steps, avg_breaks)
 
 def main():
     parser = argparse.ArgumentParser()
