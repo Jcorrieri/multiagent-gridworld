@@ -3,15 +3,13 @@ from copy import copy
 from enum import Enum
 
 import gymnasium
+import networkx as nx
+import numpy as np
+import pygame
+from gymnasium import spaces
 from pettingzoo import ParallelEnv
 from pettingzoo.test import parallel_api_test
-
-import networkx as nx
-from gymnasium import spaces
-import pygame
-import numpy as np
 from pettingzoo.utils.env import AgentID
-from sympy import false
 
 
 class Actions(Enum):
@@ -29,7 +27,7 @@ class GridWorldEnv(ParallelEnv):
         "render_fps": 12
     }
 
-    def __init__(self, render_mode=None, size=12, num_agents=3, cr=3, max_steps=1000, obs_mat=None):
+    def __init__(self, render_mode=None, size=12, num_agents=3, cr=3, max_steps=1000, map_name=None, rw_scheme=None):
         self.size = size
         self.window_size = 512
         self.rng = None
@@ -42,14 +40,20 @@ class GridWorldEnv(ParallelEnv):
         self.max_coverage = 0
         self.timestep = 0
 
+        # reward
+        self._new_tile_connected: float = rw_scheme['new_tile_connected']
+        self._new_tile_disconnected: float = rw_scheme['new_tile_disconnected']
+        self._old_tile_connected: float = rw_scheme['old_tile_connected']
+        self._old_tile_disconnected: float = rw_scheme['old_tile_disconnected']
+        self._obs_penalty: float = rw_scheme['obstacle']
+        self._termination_bonus: float = rw_scheme['terminated']
+
         self.grid = np.zeros((size, size), dtype=np.int8)
         self._adj_matrix = np.zeros((num_agents, num_agents), dtype=int)
         self._agent_locations = np.zeros((num_agents, 2), dtype=int)
 
-        if obs_mat is not None:
-            self._obs_mat = [(self.size - r - 1, c) for (r, c) in obs_mat]  # np and pygame use different origin
-        else:
-            self._obs_mat = []
+        self._map_name = map_name
+        self._obs_mat = None
 
         self._action_to_direction = {
             Actions.right.value: np.array([0, 1]),
@@ -76,7 +80,6 @@ class GridWorldEnv(ParallelEnv):
                     self._adj_matrix[j][i] = 1
 
     def _generate_observation(self, agent_idx):
-        """Generate observation for an agent following the MathWorks spec"""
         obs = np.zeros((self.size, self.size, 4), dtype=np.float32)
 
         # Layer 0: Obstacle Map
@@ -95,6 +98,32 @@ class GridWorldEnv(ParallelEnv):
         obs[:, :, 3] = (self.grid != 0).astype(np.float32)
 
         return obs
+
+    def _generate_spawns(self, occupied_positions: set):
+        placed_agents = []
+        for i in range(self._num_agents):
+            while True:
+                if len(placed_agents) == 0:  # place first agent
+                    x, y = self.rng.integers(0, self.size, 2)
+                else:
+                    # place others within range of another agent
+                    ref_agent = placed_agents[0]
+
+                    delta_arr = np.array(self.rng.integers(-self.cr, self.cr + 1, 2))
+                    new_agent = ref_agent + delta_arr
+
+                    if np.linalg.norm(ref_agent - new_agent) >= self.cr:
+                        continue
+
+                    x, y = new_agent
+                    x, y = min(max(x, 0), self.size - 1), min(max(y, 0), self.size - 1)
+
+                if (x, y) not in occupied_positions:
+                    self._agent_locations[i] = np.array([x, y])
+                    occupied_positions.add((x, y))
+                    placed_agents.append(np.array([x, y]))
+                    break
+
 
     # For Ray RLlib
     @property
@@ -129,37 +158,15 @@ class GridWorldEnv(ParallelEnv):
         self.grid = np.zeros((self.size, self.size), dtype=np.int8)
 
         if self._obs_mat is None:
-            self._obs_mat = []
+            obs_mat = np.loadtxt(f"env/obstacle_mats/{self._map_name}", delimiter=' ', dtype='int')
+            self._obs_mat = [(x, y) for x, y in obs_mat]
 
         self.max_coverage = self.size**2 - len(self._obs_mat)
 
         for i, (row, col) in enumerate(self._obs_mat):
             self.grid[row, col] = -1
-        occupied_positions = set(self._obs_mat)
 
-        placed_agents = []
-        for i in range(self._num_agents):
-            while True:
-                if len(placed_agents) == 0:  # place first agent
-                    x, y = self.rng.integers(0, self.size, 2)
-                else:
-                    # place others within range of another agent
-                    ref_agent = placed_agents[0]
-
-                    delta_arr = np.array(self.rng.integers(-self.cr, self.cr + 1, 2))
-                    new_agent = ref_agent + delta_arr
-
-                    if np.linalg.norm(ref_agent - new_agent) >= self.cr:
-                        continue
-
-                    x, y = new_agent
-                    x, y = min(max(x, 0), self.size - 1), min(max(y, 0), self.size - 1)
-
-                if (x, y) not in occupied_positions:
-                    self._agent_locations[i] = np.array([x, y])
-                    occupied_positions.add((x, y))
-                    placed_agents.append(np.array([x, y]))
-                    break
+        self._generate_spawns(set(self._obs_mat))
 
         for pos in self._agent_locations:
             self.grid[pos[0], pos[1]] = 1
@@ -222,18 +229,18 @@ class GridWorldEnv(ParallelEnv):
             # Check if the agent moved
             if not np.array_equal(current_pos, previous_pos):
                 if self.grid[current_pos[0], current_pos[1]] == 0 and connected:
-                    rewards[agent] += 2.0
+                    rewards[agent] += self._new_tile_connected
                 elif self.grid[current_pos[0], current_pos[1]] == 0:
-                    rewards[agent] -= 0.5
+                    rewards[agent] += self._new_tile_disconnected
                 elif connected:
-                    rewards[agent] -= 0.2
+                    rewards[agent] += self._old_tile_connected
                 else:
-                    rewards[agent] -= 0.5
+                    rewards[agent] += self._old_tile_disconnected
 
                 self.grid[current_pos[0], current_pos[1]] = 1
             else:
                 # collision or no-op
-                rewards[agent] -= 1
+                rewards[agent] += self._obs_penalty
 
         observations = {}
         infos = {}
@@ -248,7 +255,7 @@ class GridWorldEnv(ParallelEnv):
         all_visited = np.sum(self.grid > 0) == self.max_coverage
         if all_visited:
             for agent in self.agents:
-                rewards[agent] += 100.0
+                rewards[agent] += self._termination_bonus
             terminated = {agent: True for agent in self.agents}
             self.agents = []
 

@@ -1,0 +1,9 @@
+gymnasium~=1.1.1
+networkx~=3.4.2
+numpy~=2.2.4
+pygame~=2.6.1
+PettingZoo~=1.22.3
+torch~=2.6.0+cu126
+ray~=2.44.1
+PyYAML~=6.0.2
+matplotlib~=3.10.1
