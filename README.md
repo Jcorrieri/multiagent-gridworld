@@ -9,7 +9,7 @@ python main.py --config <file_name> --model_name <model_name> --seed <seed>
 
 **Example:**
 ```
-python main.py --config default --model_name mppo_connect_v1 --seed 89
+python main.py --config default --model_name mppo_connect_v3 --seed 89
 ```
 
 ## Testing Models
