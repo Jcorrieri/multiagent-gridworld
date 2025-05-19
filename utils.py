@@ -1,23 +1,18 @@
+import matplotlib.pyplot as plt
 from ray.rllib.algorithms import Algorithm
-from ray.rllib.algorithms.ppo import PPOConfig, PPOTorchPolicy
-from ray.rllib.core.rl_module import MultiRLModuleSpec, RLModuleSpec
+from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
-import matplotlib.pyplot as plt
+
 from env.grid_world import GridWorldEnv
-from models.rl_wrappers import CustomTorchModelV2, AgentRewardAndLengthLogger
+from models.rl_wrappers import CustomTorchModelV2
 
 
 def parse_optimizer(parser):
-    parser.add_argument('--test', type=bool, default=False)
+    parser.add_argument('--test', action='store_true')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--model_name', type=str, default='mppo_connect_v1')
-    parser.add_argument('--num_iterations', type=int, default=2000)
-    parser.add_argument('--obs_mat', type=str, default='mat1')
-    parser.add_argument('--max_steps', type=int, default=1000)
-    parser.add_argument('--size', type=int, default=12)
-    parser.add_argument('--num_agents', type=int, default=3)
-    parser.add_argument('--cr', type=int, default=5)
+    parser.add_argument('--model_name', type=str, default='mppo_connect_v3')
+    parser.add_argument('--config', type=str, default="default")
 
 def plot_metrics(metrics: [[float, float]], name: str):
     mean_rewards = [m[0] for m in metrics]
@@ -41,16 +36,16 @@ def plot_metrics(metrics: [[float, float]], name: str):
     plt.show()
 
 # RLlib only
-def build_config(env_config: dict) -> Algorithm:
+def build_config(env_config: dict, training_config: dict) -> Algorithm:
     ppo_params = dict(
-        gamma=0.9,
-        lr=1e-4,
-        grad_clip=1.0,
-        train_batch_size=2000,
-        num_epochs=5,
-        minibatch_size=200,
+        gamma=training_config['gamma'],
+        lr=training_config['lr'],
+        grad_clip=training_config['grad_clip'],
+        train_batch_size=training_config['train_batch_size'],
+        num_epochs=training_config['num_epochs'],
+        minibatch_size=training_config['minibatch_size'],
         optimizer={
-            "weight_decay": 1e-4  # this is L2 regularization
+            "weight_decay": training_config['l2_regularization']
         }
     )
 
