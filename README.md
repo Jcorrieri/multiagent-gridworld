@@ -1,5 +1,17 @@
 # Multi-Robot Exploration with RLlib
 
+## Installation (Python v3.10)
+
+**Install Pytorch with CUDA support (Required)**
+```
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu{cuda_ver}
+```
+
+**Install Dependencies (Python version 3.10 required for pretrained models -- I use 3.10.11)**
+```
+pip install ray[tune]==2.44.1 PettingZoo==1.22.3 dm_tree scipy pygame matplotlib lz4 pyyaml
+```
+
 ## Training Models
 
 **General Command:**
