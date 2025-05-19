@@ -7,7 +7,7 @@
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu{cuda_ver}
 ```
 
-**Install Dependencies (Python version 3.10 required for pretrained models -- I use 3.10.11)**
+**Install Dependencies (Python version 3.10 required for pre-trained models -- I use 3.10.11)**
 ```
 pip install ray[tune]==2.44.1 PettingZoo==1.22.3 dm_tree scipy pygame matplotlib lz4 pyyaml
 ```
@@ -21,7 +21,7 @@ python main.py --config <file_name> --model_name <model_name> --seed <seed>
 
 **Example:**
 ```
-python main.py --config default --model_name mppo_connect_v1 --seed 89
+python main.py --config default --model_name mppo_connect_v1 --seed 42
 ```
 
 ## Testing Models
@@ -31,15 +31,14 @@ python main.py --config default --model_name mppo_connect_v1 --seed 89
 python main.py --test --config <file_name> --model_name <model_name> --seed <seed>
 ```
 
-**Examples:**
+**Full Connectivity Example:**
 ```
-python main.py --test --config default --model_name mppo_connect_v3 --seed 89
-python main.py --test --config rw5 --model_name mppo_connect_rw5 --seed 42
+python main.py --test --config rw5 --model_name mppo_connect_rw5 --seed 99
 ```
 
-**Testing Model Checkpoints (During Training)**
+**Testing Model Checkpoints**
 ```
-python main.py --test --config rw4 --model_name ../ckpt/mppo_connect_rw4/3 --seed 89
+python main.py --test --config rw5 --model_name ../ckpt/mppo_connect_rw5/3 --seed 100
 ```
 
 ## Project Structure and Configuration
