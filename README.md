@@ -45,7 +45,7 @@ python main.py --test --config rw4 --model_name ../ckpt/mppo_connect_rw4/3 --see
 ## Project Structure and Configuration
 
 ```
-multi_robot_exploration/
+/
 │
 ├── config/
 │   └── <config_files>             # YAML config files (e.g., default.yaml, custom.yaml)
