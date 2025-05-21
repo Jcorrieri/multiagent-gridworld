@@ -39,6 +39,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*100 + "\nTraining...")
 
     max_rew_epi_count = 0
+    target_rew = 2400
     best_score = -np.inf
     data = []
     num_iterations = training_config['num_iterations']
@@ -56,8 +57,8 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
             os.mkdir(f"{ckpt_dir}/{(i // 1500)}/")
             trainer.save_checkpoint(f"{ckpt_dir}/{(i // 1500)}/")
 
-        # Stop training if the average reward reaches 500
-        if episode_reward_mean >= 500:
+        # Stop training if the average reward reaches target for 20 consecutive episodes
+        if episode_reward_mean >= target_rew:
             if episode_reward_mean > best_score:
                 best_score = episode_reward_mean
             max_rew_epi_count += 1
