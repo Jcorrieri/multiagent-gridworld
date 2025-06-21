@@ -86,8 +86,8 @@ def use_old_API_stack(env_config: dict, ppo_params: dict) -> PPOConfig:
             **ppo_params
         )
         .env_runners(
-            num_env_runners=4,
-            num_envs_per_env_runner=5,
+            num_env_runners=2,
+            num_envs_per_env_runner=2,
             rollout_fragment_length="auto"
         )
         .resources(

@@ -80,34 +80,26 @@ class GridWorldEnv(ParallelEnv):
                     self._adj_matrix[j][i] = 1
 
     def _generate_observation(self, agent_idx):
-        if not self._obs_mat:
-            channels = 3
-            channel_idx = 0
-        else:
-            channels = 4
-            channel_idx = 1
+        channels = 4
 
         obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
 
-        if self._obs_mat:
-            # Layer 0: Obstacle Map
-            obs[:, :, 0] = (self.grid < 0).astype(np.float32)
+        # Layer 0: Obstacle Map
+        obs[:, :, 0] = (self.grid < 0).astype(np.float32)
 
         # Layer 1: Agent's own position
         agent_pos = self._agent_locations[agent_idx]
-        obs[agent_pos[0], agent_pos[1], channel_idx] = 1.0
-
-        channel_idx += 1
+        obs[agent_pos[0], agent_pos[1], 1] = 1.0
 
         # Layer 2: Other agents' positions
         for i, pos in enumerate(self._agent_locations):
             if i != agent_idx:
-                obs[pos[0], pos[1], channel_idx] = 1.0
-
-        channel_idx += 1
+                obs[pos[0], pos[1], 2] = 1.0
 
         # Layer 3: Binary coverage map (1 = visited, 0 = unvisited, -1 = obstacle (count as visited))
-        obs[:, :, channel_idx] = (self.grid != 0).astype(np.float32)
+        obs[:, :, 3] = (self.grid != 0).astype(np.float32)
+
+        # TODO -- Layer 4: Euclidian distance to each agent
 
         return obs
 
@@ -149,14 +141,9 @@ class GridWorldEnv(ParallelEnv):
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent: AgentID) -> gymnasium.spaces.Space:
-        if not self._obs_mat:
-            c = 3
-        else:
-            c = 4
-
         """Return observation space for a specific agent"""
         # 12x12xC observation space with binary values
-        return spaces.Box(low=0, high=1, shape=(self.size, self.size, c), dtype=np.float32)
+        return spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32)
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent: AgentID) -> gymnasium.spaces.Space:

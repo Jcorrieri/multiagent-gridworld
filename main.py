@@ -25,6 +25,9 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
         model_name = f"{args.model_name}_{i}"
 
     ckpt_dir = f"./models/ckpt/{model_name}"
+    if os.path.exists(ckpt_dir):
+        os.rmdir(ckpt_dir)
+
     save_dir = f"./models/saved/{model_name}"
     os.mkdir(ckpt_dir)
 
@@ -39,7 +42,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*100 + "\nTraining...")
 
     max_rew_epi_count = 0
-    target_rew = 2400
+    target_rew = 10000
     best_score = -np.inf
     data = []
     num_iterations = training_config['num_iterations']
@@ -137,8 +140,8 @@ def test(args, env_config) -> None:
     print("")
 
     avg_reward = total_reward / num_test_episodes
-    avg_steps = total_steps // num_test_episodes
-    avg_breaks = total_breaks // num_test_episodes
+    avg_steps = round(total_steps / num_test_episodes, 2)
+    avg_breaks = round(total_breaks / num_test_episodes, 2)
 
     game_env.close()
 
