@@ -2,7 +2,7 @@ environment:
     map_name: mat1
     max_steps: 1000
     size: 12
-    num_agents: 3
+    num_agents: 4
     cr: 5
 
 reward_scheme:
