@@ -6,7 +6,7 @@ from ray.rllib.policy.policy import PolicySpec
 import numpy as np
 
 from env.grid_world import GridWorldEnv
-from models.rl_wrappers import CentralizedCriticWrappedModel, CentralizedCriticCallback, CustomTorchModelV2
+from models.rl_wrappers import CentralizedCriticWrappedModel, CustomTorchModelV2
 
 
 def parse_optimizer(parser):
@@ -59,12 +59,11 @@ def build_config(env_config: dict, training_config: dict, centralized_training: 
         config = decentralized_config(env_config, ppo_params, dummy_env)
 
     dummy_env.close()
-    config.log_level = "DEBUG"
+    # config.log_level = "DEBUG"
     return config.build_algo()
 
 def centralized_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldEnv) -> PPOConfig:
     ModelCatalog.register_custom_model("centralized_cnn", CentralizedCriticWrappedModel)
-    flattened_obs_dim = int(np.prod(dummy_env.observation_space("agent_0").shape))
 
     config = (
         PPOConfig()
@@ -84,15 +83,11 @@ def centralized_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldE
             model={
                 "custom_model": "centralized_cnn",
                 "vf_share_layers": False,
-                "custom_model_config": {
-                    "critic_obs_dim": flattened_obs_dim * env_config["num_agents"]  # central input size
-                },
             },
             use_gae=True,
             use_critic=True,
             **ppo_params,
         )
-        .callbacks(CentralizedCriticCallback)
         .env_runners(
             num_env_runners=4,
             num_envs_per_env_runner=2,
