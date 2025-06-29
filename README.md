@@ -2,8 +2,6 @@
 
 This is a Deep Reinforcement Learning (DRL) framework for coordinating a team of robots to explore an unknown grid-world environment while maintaining a connected communication network. The proposed system adapts a multi-agent actor-critic algorithm (Multi-Agent PPO) using Ray RLlib’s legacy API and PettingZoo (Gymnasium) for environment modeling. Inspired by a MATLAB-based area coverage example, this project extends the task to include communication constraints by modifying the reward function. Empirical results demonstrate that the learned policy achieves moderate to high success rates in exploration while preserving network connectivity, and shows potential for generalization to larger teams.
 
-[![Watch the video](thumbnail_image_url)]((https://www.dropbox.com/scl/fi/vzkqopndb4neu2392cpr3/MRCC_4A_SD89.mp4?rlkey=mvivhnxejpxzu52uxqgqlukkp&st=h7kaszmh&raw=1))
-
 ## Installation (Python v3.10)
 
 **Install Pytorch with CUDA support (Required)**
