@@ -27,10 +27,10 @@ class GridWorldEnv(ParallelEnv):
         "render_fps": 12
     }
 
-    def __init__(self, render_mode=None, size=12, num_agents=3, cr=3, max_steps=1000, map_name=None, rw_scheme=None):
+    def __init__(self, render_mode=None, seed=None, rw_scheme=None, size=12, num_agents=3, cr=3, max_steps=1000, map_name=None):
         self.size = size
         self.window_size = 512
-        self.rng = None
+        self.rng = np.random.default_rng(seed)
 
         self._num_agents = num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
@@ -80,7 +80,9 @@ class GridWorldEnv(ParallelEnv):
                     self._adj_matrix[j][i] = 1
 
     def _generate_observation(self, agent_idx):
-        obs = np.zeros((self.size, self.size, 4), dtype=np.float32)
+        channels = 4
+
+        obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
 
         # Layer 0: Obstacle Map
         obs[:, :, 0] = (self.grid < 0).astype(np.float32)
@@ -97,7 +99,24 @@ class GridWorldEnv(ParallelEnv):
         # Layer 3: Binary coverage map (1 = visited, 0 = unvisited, -1 = obstacle (count as visited))
         obs[:, :, 3] = (self.grid != 0).astype(np.float32)
 
-        return obs
+        # TODO -- Layer 4: Euclidian distance to each agent
+
+        return obs.astype(np.float32)
+
+    def _generate_global_state(self):
+        global_state = np.zeros((self.size, self.size, 3), dtype=np.float32)
+
+        # Layer 0: Obstacle Map
+        global_state[:, :, 0] = (self.grid < 0).astype(np.float32)
+
+        # Layer 2: Agent positions
+        for i, pos in enumerate(self._agent_locations):
+            global_state[pos[0], pos[1], 1] = 1.0
+
+        # Layer 3: Binary coverage map (1 = visited, 0 = unvisited, -1 = obstacle (count as visited))
+        global_state[:, :, 2] = (self.grid != 0).astype(np.float32)
+
+        return global_state
 
     def _generate_spawns(self, occupied_positions: set):
         placed_agents = []
@@ -138,7 +157,7 @@ class GridWorldEnv(ParallelEnv):
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent: AgentID) -> gymnasium.spaces.Space:
         """Return observation space for a specific agent"""
-        # 12x12x4 observation space with binary values
+        # 12x12xC observation space with binary values
         return spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32)
 
     @functools.lru_cache(maxsize=None)
@@ -147,11 +166,8 @@ class GridWorldEnv(ParallelEnv):
         return spaces.Discrete(5)  # 5 actions: right, up, left, down, no-op
 
     def reset(self, seed=None, options=None):
-        """Reset the environment"""
         if seed is not None:
             self.rng = np.random.default_rng(seed)
-        else:
-            self.rng = np.random.default_rng()
 
         self.agents = copy(self.possible_agents)
         self.timestep = 0
@@ -177,7 +193,11 @@ class GridWorldEnv(ParallelEnv):
         infos = {}
         for i, agent in enumerate(self.agents):
             observations[agent] = self._generate_observation(i)
-            infos[agent] = {"coverage": np.sum(self.grid > 0) / self.max_coverage}
+            infos[agent] = {
+                "coverage": np.sum(self.grid > 0) / self.max_coverage,
+                "step": self.timestep,
+                "connection_broken": False,
+            }
 
         if self.render_mode == "human":
             self._render_frame()
@@ -249,7 +269,7 @@ class GridWorldEnv(ParallelEnv):
             infos[agent] = {
                 "coverage": np.sum(self.grid > 0) / self.max_coverage,
                 "step": self.timestep,
-                "connection_broken": not connected
+                "connection_broken": not connected,
             }
 
         all_visited = np.sum(self.grid > 0) == self.max_coverage
