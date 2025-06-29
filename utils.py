@@ -11,6 +11,7 @@ from models.rl_wrappers import CentralizedCriticWrappedModel, CustomTorchModelV2
 
 def parse_optimizer(parser):
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--num_test_episodes', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--centralized_critic', action='store_true')
     parser.add_argument('--model_name', type=str, default='new_model')
