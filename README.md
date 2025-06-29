@@ -1,7 +1,5 @@
 # Multi-Robot Exploration with RLlib
 
----
-
 ## Installation (Python v3.10)
 
 **Install Pytorch with CUDA support (Required)**
@@ -14,8 +12,6 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 pip install ray[tune]==2.44.1 PettingZoo==1.22.3 dm_tree scipy pygame matplotlib lz4 pyyaml
 ```
 
----
-
 ## Training Models
 
 **General Command:**
@@ -27,8 +23,6 @@ python main.py --config <file_name> --model_name <model_name> --seed <seed>
 ```
 python main.py --config default --model_name model_v1 --seed 42
 ```
-
----
 
 ## Testing Models
 
@@ -50,8 +44,6 @@ python main.py --test --config s12_br10 --model_name s12_br10_d --seed 25
 ```
 python main.py --test --config rw5 --model_name ../ckpt/model_name/3 
 ```
-
----
 
 ## Project Structure and Configuration
 
@@ -83,8 +75,6 @@ python main.py --test --config rw5 --model_name ../ckpt/model_name/3
 - Add custom configuration files under config/ and use --config <file_name> when running.
 - Models are saved or checkpointed under models/saved/ and models/ckpt/, respectively.
 - Metrics will be stored at the root '/' after training completes.
-
----
 
 ## Example configuration file format: 
 ```yaml
