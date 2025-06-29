@@ -17,6 +17,8 @@ from utils import build_config, plot_metrics, parse_optimizer
 def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> None:
     print("\nBuilding Ray Trainer...\n")
 
+    torch.autograd.set_detect_anomaly(False, True)  # TODO -- AHH!!!!
+
     i = 0
     model_name = args.model_name
     while os.path.exists(f"./models/saved/{model_name}"):

@@ -101,7 +101,22 @@ class GridWorldEnv(ParallelEnv):
 
         # TODO -- Layer 4: Euclidian distance to each agent
 
-        return obs
+        return obs.astype(np.float32)
+
+    def _generate_global_state(self):
+        global_state = np.zeros((self.size, self.size, 3), dtype=np.float32)
+
+        # Layer 0: Obstacle Map
+        global_state[:, :, 0] = (self.grid < 0).astype(np.float32)
+
+        # Layer 2: Agent positions
+        for i, pos in enumerate(self._agent_locations):
+            global_state[pos[0], pos[1], 1] = 1.0
+
+        # Layer 3: Binary coverage map (1 = visited, 0 = unvisited, -1 = obstacle (count as visited))
+        global_state[:, :, 2] = (self.grid != 0).astype(np.float32)
+
+        return global_state
 
     def _generate_spawns(self, occupied_positions: set):
         placed_agents = []
@@ -178,7 +193,11 @@ class GridWorldEnv(ParallelEnv):
         infos = {}
         for i, agent in enumerate(self.agents):
             observations[agent] = self._generate_observation(i)
-            infos[agent] = {"coverage": np.sum(self.grid > 0) / self.max_coverage}
+            infos[agent] = {
+                "coverage": np.sum(self.grid > 0) / self.max_coverage,
+                "step": self.timestep,
+                "connection_broken": False,
+            }
 
         if self.render_mode == "human":
             self._render_frame()
@@ -250,7 +269,7 @@ class GridWorldEnv(ParallelEnv):
             infos[agent] = {
                 "coverage": np.sum(self.grid > 0) / self.max_coverage,
                 "step": self.timestep,
-                "connection_broken": not connected
+                "connection_broken": not connected,
             }
 
         all_visited = np.sum(self.grid > 0) == self.max_coverage
