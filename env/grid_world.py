@@ -27,10 +27,10 @@ class GridWorldEnv(ParallelEnv):
         "render_fps": 12
     }
 
-    def __init__(self, render_mode=None, size=12, num_agents=3, cr=3, max_steps=1000, map_name=None, rw_scheme=None):
+    def __init__(self, render_mode=None, seed=None, rw_scheme=None, size=12, num_agents=3, cr=3, max_steps=1000, map_name=None):
         self.size = size
         self.window_size = 512
-        self.rng = None
+        self.rng = np.random.default_rng(seed)
 
         self._num_agents = num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
@@ -151,11 +151,8 @@ class GridWorldEnv(ParallelEnv):
         return spaces.Discrete(5)  # 5 actions: right, up, left, down, no-op
 
     def reset(self, seed=None, options=None):
-        """Reset the environment"""
         if seed is not None:
             self.rng = np.random.default_rng(seed)
-        else:
-            self.rng = np.random.default_rng()
 
         self.agents = copy(self.possible_agents)
         self.timestep = 0
