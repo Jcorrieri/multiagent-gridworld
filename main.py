@@ -17,7 +17,7 @@ from utils import build_config, plot_metrics, parse_optimizer
 def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> None:
     print("\nBuilding Ray Trainer...\n")
 
-    torch.autograd.set_detect_anomaly(False, True)  # TODO -- AHH!!!!
+    torch.autograd.set_detect_anomaly(False, True)
 
     i = 0
     model_name = args.model_name
