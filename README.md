@@ -16,6 +16,10 @@ pip install ray[tune]==2.44.1 PettingZoo==1.22.3 dm_tree scipy pygame matplotlib
 
 ## Training Models
 
+Additional arguments:
+- --seed \<integer\> (defaults to 42)
+- --centralized_critic (boolean flag to use global observation for value function -- experimental)
+
 **General Command:**
 ```
 python main.py --config <file_name> --model_name <model_name> --seed <seed>
