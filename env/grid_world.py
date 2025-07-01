@@ -101,22 +101,25 @@ class GridWorldEnv(ParallelEnv):
 
         # TODO -- Layer 4: Euclidian distance to each agent
 
-        return obs.astype(np.float32)
+        return obs
 
-    def _generate_global_state(self):
-        global_state = np.zeros((self.size, self.size, 3), dtype=np.float32)
+    def _get_global_state(self):
+        obs = np.zeros((self.size, self.size, 3), dtype=np.float32)
 
-        # Layer 0: Obstacle Map
-        global_state[:, :, 0] = (self.grid < 0).astype(np.float32)
+        # Channel 0: Obstacle Map (1 where obstacles are)
+        obs[:, :, 0] = (self.grid < 0).astype(np.float32)
 
-        # Layer 2: Agent positions
-        for i, pos in enumerate(self._agent_locations):
-            global_state[pos[0], pos[1], 1] = 1.0
+        # Channel 1: Coverage Map (1 for visited cells, including obstacles)
+        obs[:, :, 1] = (self.grid != 0).astype(np.float32)
 
-        # Layer 3: Binary coverage map (1 = visited, 0 = unvisited, -1 = obstacle (count as visited))
-        global_state[:, :, 2] = (self.grid != 0).astype(np.float32)
+        # Channel 2: All agents' positions
+        for pos in self._agent_locations:
+            obs[pos[0], pos[1], 2] = 1.0
 
-        return global_state
+        assert not np.isnan(obs).any(), "NaN in env obs"
+        assert not np.isinf(obs).any(), "Inf in env obs"
+
+        return obs
 
     def _generate_spawns(self, occupied_positions: set):
         placed_agents = []
@@ -197,6 +200,7 @@ class GridWorldEnv(ParallelEnv):
                 "coverage": np.sum(self.grid > 0) / self.max_coverage,
                 "step": self.timestep,
                 "connection_broken": False,
+                "global": self._get_global_state()
             }
 
         if self.render_mode == "human":
@@ -270,6 +274,7 @@ class GridWorldEnv(ParallelEnv):
                 "coverage": np.sum(self.grid > 0) / self.max_coverage,
                 "step": self.timestep,
                 "connection_broken": not connected,
+                "global": self._get_global_state()
             }
 
         all_visited = np.sum(self.grid > 0) == self.max_coverage

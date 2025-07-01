@@ -1,5 +1,6 @@
 import numpy as np
 import torch.nn as nn
+from gymnasium import spaces
 from gymnasium.spaces import Box
 from ray.rllib.policy.view_requirement import ViewRequirement
 from ray.rllib.utils.annotations import override
@@ -17,9 +18,24 @@ class CentralizedCriticWrappedModel(TorchModelV2, nn.Module):
 
     def forward(self, input_dict, state, seq_lens):
         device = next(self.parameters()).device
-        obs = input_dict["obs"].float().to(device)
-        critic_obs = input_dict.get("global_state", None)
-        return self.base(obs, critic_obs), state
+
+        obs = input_dict["obs"]
+        critic_obs = None
+
+        infos = input_dict.get("infos", None)
+
+        if isinstance(infos, np.ndarray):
+            states = []
+            for info in infos:
+                if info.get("global") is None:
+                    for key in info.keys():
+                        states.append(info[key]['agent_0'].get('global', None))
+                else:
+                    states.append(info['global'])
+            critic_obs = np.stack(states)
+            # print(critic_obs.shape)
+
+        return self.base(obs.float().to(device), critic_obs), state
 
     def value_function(self):
         return self.base.value_function()

@@ -7,9 +7,9 @@ environment:
 
 reward_scheme:
     new_tile_connected: 2.0
-    new_tile_disconnected: -10.0
-    old_tile_connected: -0.2
-    old_tile_disconnected: -10.0
+    new_tile_disconnected: -0.05
+    old_tile_connected: 0.5
+    old_tile_disconnected: -0.05
     obstacle: -1.0
     terminated: 50
 

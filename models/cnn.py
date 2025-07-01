@@ -9,6 +9,7 @@ class CentralizedCriticCNNModel(nn.Module):
         self.obs_space = obs_space
 
         h, w, c = obs_space.shape  # HWC
+        self.critic_c = 3
 
         # actor (default) cnn
         self.actor_conv = nn.Sequential(
@@ -30,16 +31,16 @@ class CentralizedCriticCNNModel(nn.Module):
             nn.Linear(256, num_outputs)
         )
 
-        # new critic cnn
+        # critic
         self.critic_conv = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(in_channels=self.critic_c, out_channels=16, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
             nn.Flatten()
         )
 
         with torch.no_grad():
-            dummy_critic = torch.zeros(1, 3, h, w)  # explicitly 3 channels
+            dummy_critic = torch.zeros(1, self.critic_c, h, w)  # c = 4 (or whatever obs_space.shape[2])
             critic_flattened_size = self.critic_conv(dummy_critic).flatten(1).size(1)
 
         self.critic_head = nn.Sequential(
@@ -56,21 +57,29 @@ class CentralizedCriticCNNModel(nn.Module):
         if obs.ndim == 4 and obs.shape[1] != self.obs_space.shape[-1]:
             obs = obs.permute(0, 3, 1, 2)  # Convert [B, H, W, C] to [B, C, H, W]
 
+        assert not torch.isnan(obs).any(), "NaN in model input"
+        assert not torch.isinf(obs).any(), "Inf in model input"
+
         # Actor branch
         x = self.actor_conv(obs)
         logits = self.actor_head(x)
 
+        assert not torch.isnan(logits).any(), "NaN in model logits"
+        assert not torch.isinf(logits).any(), "Inf in model logits"
+
         # Centralized critic branch
         if critic_obs is not None:
-            if critic_obs.ndim == 4 and critic_obs.shape[1] != 3:  # 3 = num channels
-                critic_obs = critic_obs.permute(0, 3, 1, 2)
-
-            print("TORCH FOWARD SHAPE", critic_obs.shape)
-
             if not isinstance(critic_obs, torch.Tensor):
                 critic_obs = torch.as_tensor(critic_obs, dtype=torch.float32, device=obs.device)
+
+            if critic_obs.ndim == 4 and critic_obs.shape[1] != self.critic_c:  # 3 = num channels
+                critic_obs = critic_obs.permute(0, 3, 1, 2)
+
             global_x = self.critic_conv(critic_obs)
             self._value_out = self.critic_head(global_x)
+
+            assert not torch.isnan(self._value_out).any(), "NaN in model values"
+            assert not torch.isinf(self._value_out).any(), "Inf in model values"
         else:
             self._value_out = torch.zeros(obs.shape[0], 1, device=obs.device)
 
