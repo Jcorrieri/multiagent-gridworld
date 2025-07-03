@@ -11,7 +11,7 @@ from ray.rllib.models import ModelCatalog
 from ray.tune import register_env
 
 from env.grid_world import GridWorldEnv
-from models.rl_wrappers import CentralizedCriticWrappedModel, CustomTorchModelV2
+from models.rl_wrappers import CustomTorchModelV2
 from utils import build_config, plot_metrics, parse_optimizer
 
 def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> None:
@@ -32,7 +32,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     save_dir = f"./models/saved/{model_name}"
     os.mkdir(ckpt_dir)
 
-    trainer = build_config(env_config, training_config, args.centralized_critic)
+    trainer = build_config(env_config, training_config)
 
     policy_id = "shared_policy"
     model = trainer.get_policy(policy_id).model
@@ -101,7 +101,6 @@ def test(args, env_config) -> None:
     checkpoint_dir = os.path.abspath(f"models/saved/{args.model_name}")
 
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
-    ModelCatalog.register_custom_model("centralized_cnn", CentralizedCriticWrappedModel)
     tester = Algorithm.from_checkpoint(checkpoint_dir)
 
     policy_net = "shared_policy"
@@ -126,6 +125,7 @@ def test(args, env_config) -> None:
     pretty_print(f"Metrics for Demo Episode", reward, steps, num_breaks)
 
     num_episodes = args.num_test_episodes
+    epis_connected = 0
     if num_episodes > 1:
         print(f"Running {num_episodes} more test episodes...")
         env_config["render_mode"] = "rgb_array"
@@ -138,6 +138,7 @@ def test(args, env_config) -> None:
             reward, steps, num_breaks = test_one_episode(game_env, tester)
             total_reward += reward
             total_steps += steps
+            epis_connected += 1 if (num_breaks == 0) else 0
             total_breaks += num_breaks
         print("")
 
@@ -148,6 +149,10 @@ def test(args, env_config) -> None:
         game_env.close()
 
         pretty_print(f"Averages Over {num_episodes} Test Episodes", avg_reward, avg_steps, avg_breaks)
+
+        comm_ratio = epis_connected / num_episodes * 100
+        print(epis_connected)
+        print(f"Communication Ratio: {round(comm_ratio)}%")
 
 def main():
     parser = argparse.ArgumentParser()
