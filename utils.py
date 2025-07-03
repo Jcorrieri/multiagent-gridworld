@@ -3,10 +3,8 @@ from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
 
-import numpy as np
-
 from env.grid_world import GridWorldEnv
-from models.rl_wrappers import CentralizedCriticWrappedModel, CustomTorchModelV2
+from models.rl_wrappers import CustomTorchModelV2
 
 
 def parse_optimizer(parser):
@@ -38,7 +36,7 @@ def plot_metrics(metrics: [[float, float]], name: str):
     plt.savefig(f'{name}_metrics.png')
     plt.show()
 
-def build_config(env_config: dict, training_config: dict, centralized_training: bool = False):
+def build_config(env_config: dict, training_config: dict):
     dummy_env = GridWorldEnv(**env_config)
 
     # PPO training parameters
@@ -54,58 +52,11 @@ def build_config(env_config: dict, training_config: dict, centralized_training: 
         entropy_coeff=0.01,
     )
 
-    if centralized_training:
-        config = centralized_config(env_config, ppo_params, dummy_env)
-    else:
-        config = decentralized_config(env_config, ppo_params, dummy_env)
+    config = decentralized_config(env_config, ppo_params, dummy_env)
 
     dummy_env.close()
     # config.log_level = "DEBUG"
     return config.build_algo()
-
-def centralized_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldEnv) -> PPOConfig:
-    ModelCatalog.register_custom_model("centralized_cnn", CentralizedCriticWrappedModel)
-
-    config = (
-        PPOConfig()
-        .environment(env="grid_world", env_config=env_config)
-        .framework("torch")
-        .multi_agent(
-            policies={
-                "shared_policy": PolicySpec(
-                    policy_class=None,
-                    observation_space=dummy_env.observation_space("agent_0"),
-                    action_space=dummy_env.action_space("agent_0"),
-                )
-            },
-            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy",
-        )
-        .training(
-            model={
-                "custom_model": "centralized_cnn",
-                "vf_share_layers": False,
-            },
-            use_gae=True,
-            use_critic=True,
-            **ppo_params,
-        )
-        .env_runners(
-            num_env_runners=4,
-            num_envs_per_env_runner=2,
-            rollout_fragment_length="auto",
-        )
-        .resources(num_gpus=1)
-        .evaluation(
-            evaluation_num_env_runners=0,
-            evaluation_interval=None,
-        )
-        .api_stack(
-            enable_env_runner_and_connector_v2=False,
-            enable_rl_module_and_learner=False,
-        )
-    )
-
-    return config
 
 def decentralized_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldEnv) -> PPOConfig:
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)

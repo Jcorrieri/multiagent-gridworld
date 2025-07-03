@@ -103,24 +103,6 @@ class GridWorldEnv(ParallelEnv):
 
         return obs
 
-    def _get_global_state(self):
-        obs = np.zeros((self.size, self.size, 3), dtype=np.float32)
-
-        # Channel 0: Obstacle Map (1 where obstacles are)
-        obs[:, :, 0] = (self.grid < 0).astype(np.float32)
-
-        # Channel 1: Coverage Map (1 for visited cells, including obstacles)
-        obs[:, :, 1] = (self.grid != 0).astype(np.float32)
-
-        # Channel 2: All agents' positions
-        for pos in self._agent_locations:
-            obs[pos[0], pos[1], 2] = 1.0
-
-        assert not np.isnan(obs).any(), "NaN in env obs"
-        assert not np.isinf(obs).any(), "Inf in env obs"
-
-        return obs
-
     def _generate_spawns(self, occupied_positions: set):
         placed_agents = []
         for i in range(self._num_agents):
@@ -200,7 +182,6 @@ class GridWorldEnv(ParallelEnv):
                 "coverage": np.sum(self.grid > 0) / self.max_coverage,
                 "step": self.timestep,
                 "connection_broken": False,
-                "global": self._get_global_state()
             }
 
         if self.render_mode == "human":
@@ -274,7 +255,6 @@ class GridWorldEnv(ParallelEnv):
                 "coverage": np.sum(self.grid > 0) / self.max_coverage,
                 "step": self.timestep,
                 "connection_broken": not connected,
-                "global": self._get_global_state()
             }
 
         all_visited = np.sum(self.grid > 0) == self.max_coverage

@@ -1,44 +1,8 @@
-import numpy as np
 import torch.nn as nn
-from gymnasium import spaces
-from gymnasium.spaces import Box
-from ray.rllib.policy.view_requirement import ViewRequirement
 from ray.rllib.utils.annotations import override
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 
-from models.cnn import CentralizedCriticCNNModel, ActorCriticCNNModel
-
-
-class CentralizedCriticWrappedModel(TorchModelV2, nn.Module):
-    def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
-        TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
-        nn.Module.__init__(self)
-
-        self.base = CentralizedCriticCNNModel(obs_space, num_outputs)
-
-    def forward(self, input_dict, state, seq_lens):
-        device = next(self.parameters()).device
-
-        obs = input_dict["obs"]
-        critic_obs = None
-
-        infos = input_dict.get("infos", None)
-
-        if isinstance(infos, np.ndarray):
-            states = []
-            for info in infos:
-                if info.get("global") is None:
-                    for key in info.keys():
-                        states.append(info[key]['agent_0'].get('global', None))
-                else:
-                    states.append(info['global'])
-            critic_obs = np.stack(states)
-            # print(critic_obs.shape)
-
-        return self.base(obs.float().to(device), critic_obs), state
-
-    def value_function(self):
-        return self.base.value_function()
+from models.cnn import ActorCriticCNNModel
 
 
 class CustomTorchModelV2(TorchModelV2, nn.Module):
