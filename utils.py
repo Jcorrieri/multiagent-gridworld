@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import random
 from collections import deque
@@ -10,7 +12,7 @@ def parse_optimizer(parser):
     parser.add_argument('--model_name', type=str, default='')
     parser.add_argument('--config', type=str, default='default')
 
-def plot_metrics(metrics: [[float, float]], name: str):
+def plot_metrics(metrics: [[float, float]], path: str):
     mean_rewards = [m[0] for m in metrics]
     mean_lengths = [m[1] for m in metrics]
     iterations = list(range(len(metrics)))
@@ -23,13 +25,13 @@ def plot_metrics(metrics: [[float, float]], name: str):
     axs[0].visited_tiles(True)
 
     axs[1].plot(iterations, mean_lengths, label="Mean Episode Length", color='green')
-    axs[1].set_xlabel("Iteration")
+    axs[1].set_xlabel("Episode")
     axs[1].set_ylabel("Mean Episode Length")
     axs[1].visited_tiles(True)
 
     plt.tight_layout()
-    plt.savefig(f'{name}_metrics.png')
-    plt.show()
+    plt.savefig(os.path.join(path), "metrics_plot.png")
+    print(f"Saved training plot to {path}/metrics_plot.png")
 
 def generate_obstacles(grid_size=25, obstacle_density=0.15, max_attempts=100, seed=None):
     if seed is not None:

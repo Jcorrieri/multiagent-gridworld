@@ -13,17 +13,17 @@ from utils import plot_metrics
 
 
 def build_config(env_config: dict, training_config: dict):
-    dummy_env = GridWorldEnv(**env_config)
+    dummy_env = GridWorldEnv(env_config)
 
     # PPO training parameters
     ppo_params = dict(
-        gamma=training_config["gamma"],
-        lr=training_config["lr"],
-        grad_clip=training_config["grad_clip"],
-        train_batch_size=training_config["train_batch_size"],
-        num_epochs=training_config["num_passes"],
-        minibatch_size=training_config["minibatch_size"],
-        optimizer={"weight_decay": training_config["l2_regularization"]},
+        gamma=training_config.get("gamma", 0.9),
+        lr=training_config.get("lr", 0.0001),
+        grad_clip=training_config.get("grad_clip", 1.0),
+        train_batch_size=training_config.get("train_batch_size", 8000),
+        num_epochs=training_config.get("num_passes", 5),
+        minibatch_size=training_config.get("minibatch_size", 800),
+        optimizer={"weight_decay": training_config.get("l2_regularization", 0.001)},
         lambda_=0.9,
         entropy_coeff=0.01,
     )
@@ -40,7 +40,7 @@ def get_default_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldE
     config = (
         PPOConfig()
         .environment(
-            env="gridworld",
+            env=env_config.get("env_name", "gridworld"),
             env_config=env_config,
         )
         .framework("torch")
@@ -82,33 +82,48 @@ def get_default_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldE
 
     return config
 
-def create_model_directories(args: argparse.Namespace):
-    i = 0
-    model_name = args.model_name
-    while os.path.exists(f"./models/saved/{model_name}"):
-        i += 1
-        model_name = f"{args.model_name}_{i}"
+def create_model_directories(env_config: dict, args: argparse.Namespace):
+    if env_config['env_name'] == "gridworld":
+        if env_config['base_station']:
+            experiment_dir = 'experiments/fixed-station'
+        else:
+            experiment_dir = 'experiments/default-env'
+    else:
+        experiment_dir = 'experiments/baseline'
 
-    ckpt_dir = f"./models/ckpt/{model_name}"
-    if os.path.exists(ckpt_dir):
-        os.rmdir(ckpt_dir)
 
-    save_dir = f"./models/saved/{model_name}"
-    os.mkdir(ckpt_dir)
+    if args.model_name != '':
+        model_dir = os.path.join(experiment_dir, args.model_name)
+    else:
+        model_dir = os.path.join(experiment_dir, 'v0')
+        i = 1
+        while os.path.exists(model_dir):
+            model_dir = os.path.join(experiment_dir, f'v{i}')
+            i += 1
 
-    return model_name, save_dir, ckpt_dir
+    ckpt_dir = os.path.join(model_dir, "ckpt")
+    save_dir = os.path.join(model_dir, "saved")
+    train_metrics_dir = os.path.join(model_dir, "train-metrics")
+    test_result_dir = os.path.join(model_dir, "test-results")
+
+    paths = [ckpt_dir, save_dir, train_metrics_dir, test_result_dir]
+    for path in paths:
+        if os.path.exists(path):
+            os.rmdir(path)
+        os.makedirs(path)
+
+    return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
 
 def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> None:
     print("Training Parameters:")
     print("-"*50)
     print(f"Using device: {args.device}")
-    print(f"Model Name: {args.model_name}")
     print(f"Config: {args.config}")
     print("-"*50)
 
     print("\nBuilding Ray Trainer...\n")
 
-    model_name, save_dir, ckpt_dir = create_model_directories(args)
+    ckpt_dir, save_dir, train_metrics_dir, test_result_dir = create_model_directories(env_config, args)
 
     trainer = build_config(env_config, training_config)
 
@@ -147,6 +162,6 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
         else:
             max_rew_epi_count = 0
 
-    print(f"\nSaving to \"{save_dir}\" using model name: {model_name}")
+    print(f"\nSaving to \"{save_dir}\"")
     trainer.save(save_dir)
-    plot_metrics(data, model_name)
+    plot_metrics(data, train_metrics_dir)
