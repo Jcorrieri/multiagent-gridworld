@@ -1,4 +1,5 @@
 import argparse
+import os.path
 import warnings
 
 import torch
@@ -27,15 +28,23 @@ def main():
     with open(f"config/{args.config}", 'r') as f:
         config = yaml.safe_load(f)
 
-    env_config = dict(
-        render_mode="human" if args.test else "human", # TODO -- rbg_array for training
-        env_config=config['environment'],
-        reward_scheme=config['reward_scheme'],
-        map_set="testing" if args.test else "training"
-    )
-
     # for rllib
-    register_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(**cfg)))
+    register_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
+
+    if args.test:
+        map_dir_path = "./env/obstacle-mats/testing"
+        render_mode = "human"
+    else:
+        map_dir_path = "./env/obstacle-mats/training"
+        render_mode = "human"
+
+    env_config = dict(
+        map_dir_path=map_dir_path,
+        render_mode=render_mode,
+        seed=42,
+        reward_scheme=config['reward_scheme'],
+        **config['environment']
+    )
 
     if args.test:
         test(args, env_config, config['testing'])

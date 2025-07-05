@@ -30,21 +30,23 @@ class GridWorldEnv(ParallelEnv):
         "render_fps": 60
     }
 
-    def __init__(self, env_config, reward_scheme, map_set="training", render_mode="rgb_array", seed=42, **kwargs):
-        self.size = env_config.get("size", 25)
+    def __init__(self, env_params, **kwargs):       
+        self.size = env_params.get("size", 25)
         self.window_size = 512
-        self.rng = np.random.default_rng(seed)
+        self.rng = np.random.default_rng(env_params.get("seed", 42))
 
-        self._num_agents = env_config.get("num_agents", 5)
+        self._num_agents = env_params.get("num_agents", 5)
         self.possible_agents = [f"agent_{i}" for i in range(self._num_agents)]
         self.agents = []
 
-        self.cr = env_config.get("cr", 10)
-        self.max_steps = env_config.get("max_steps", 1000)
+        self.cr = env_params.get("cr", 10)
+        self.fov_range = env_params.get("fov", 25)
+        self.max_steps = env_params.get("max_steps", 1000)
         self.max_coverage = 0
         self.timestep = 0
 
         # reward
+        reward_scheme = env_params.get("reward_scheme", {})
         self.new_tile_visited = reward_scheme.get("new_tile_visited", 2.0)
         self.old_tile_visited = reward_scheme.get("old_tile_visited", -0.1)
         self.obstacle_penalty = reward_scheme.get("obstacle", -1.0)
@@ -56,7 +58,7 @@ class GridWorldEnv(ParallelEnv):
         self.agent_locations = np.zeros((self._num_agents, 2), dtype=int)
 
         self.num_maps = 50
-        self.map_dir_path = os.path.join(os.curdir, f'obstacle_mats/{map_set}/')
+        self.map_dir_path = env_params.get("map_dir_path")
         self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
         self.obs_mat = None
 
@@ -68,8 +70,7 @@ class GridWorldEnv(ParallelEnv):
             Actions.no_op.value: np.array([0, 0]),
         }
 
-        assert render_mode is None or render_mode in self.metadata["render_modes"]
-        self.render_mode = render_mode
+        self.render_mode = env_params.get("render_mode", "rgb_array")
 
         self.window = None
         self.clock = None
@@ -106,7 +107,7 @@ class GridWorldEnv(ParallelEnv):
                     self.adj_matrix[j][i] = 1
 
     def _generate_observation(self, agent_idx):
-        channels = 4
+        channels = 5 if self.fov_range < self.size else 4  # add visibility mask if using local fovs
 
         obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
 
@@ -126,7 +127,10 @@ class GridWorldEnv(ParallelEnv):
         mask = self.visited_tiles == 1
         obs[mask, 3] = 1.0
 
-        # TODO -- Layer 4: Euclidian distance to each agent
+        # Layer 4 (Optional): Visibility Mask
+        if self.fov_range < self.size:
+            mask = self.visibility_mask == 1
+            obs[mask, 4] = 1.0
 
         return obs
 
@@ -151,6 +155,8 @@ class GridWorldEnv(ParallelEnv):
         mat_idx = self.map_indices.pop()
         map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')  # TODO -- replace w real map indices
         self.obs_mat = np.loadtxt(map_path, delimiter=' ', dtype='int')
+
+        self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
 
         self.max_coverage = self.size**2 - len(self.obs_mat)
 
@@ -376,9 +382,9 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    env = GridWorldEnv({}, {}, render_mode="human")
+    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing'})
 
-    for i in range(10):
+    for i in range(100):
         obs, _ = env.reset()
         episode_over = False
         while not episode_over:
