@@ -1,4 +1,5 @@
 import functools
+import os
 from copy import copy
 from enum import Enum
 
@@ -11,6 +12,8 @@ from pettingzoo import ParallelEnv
 from pettingzoo.test import parallel_api_test
 from pettingzoo.utils.env import AgentID
 
+import utils
+
 
 class Actions(Enum):
     right = 0
@@ -22,38 +25,40 @@ class Actions(Enum):
 
 class GridWorldEnv(ParallelEnv):
     metadata = {
-        "name": "GridWorldEnv_v0",
+        "name": "gridworld",
         "render_modes": ["human", "rgb_array"],
-        "render_fps": 12
+        "render_fps": 60
     }
 
-    def __init__(self, render_mode=None, seed=None, rw_scheme=None, size=12, num_agents=3, cr=3, max_steps=1000, map_name=None):
-        self.size = size
+    def __init__(self, env_config, reward_scheme, map_set="training", render_mode="rgb_array", seed=42, **kwargs):
+        self.size = env_config.get("size", 25)
         self.window_size = 512
         self.rng = np.random.default_rng(seed)
 
-        self._num_agents = num_agents
-        self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
+        self._num_agents = env_config.get("num_agents", 5)
+        self.possible_agents = [f"agent_{i}" for i in range(self._num_agents)]
+        self.agents = []
 
-        self.cr = cr
-        self.max_steps = max_steps
+        self.cr = env_config.get("cr", 10)
+        self.max_steps = env_config.get("max_steps", 1000)
         self.max_coverage = 0
         self.timestep = 0
 
         # reward
-        self._new_tile_connected: float = rw_scheme['new_tile_connected']
-        self._new_tile_disconnected: float = rw_scheme['new_tile_disconnected']
-        self._old_tile_connected: float = rw_scheme['old_tile_connected']
-        self._old_tile_disconnected: float = rw_scheme['old_tile_disconnected']
-        self._obs_penalty: float = rw_scheme['obstacle']
-        self._termination_bonus: float = rw_scheme['terminated']
+        self.new_tile_visited = reward_scheme.get("new_tile_visited", 2.0)
+        self.old_tile_visited = reward_scheme.get("old_tile_visited", -0.1)
+        self.obstacle_penalty = reward_scheme.get("obstacle", -1.0)
+        self.termination_bonus = reward_scheme.get("terminated", 480)
 
-        self.grid = np.zeros((size, size), dtype=np.int8)
-        self._adj_matrix = np.zeros((num_agents, num_agents), dtype=int)
-        self._agent_locations = np.zeros((num_agents, 2), dtype=int)
+        self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
+        self.visibility_mask = np.zeros((self.size, self.size), dtype=int)
+        self.adj_matrix = np.zeros((self._num_agents, self._num_agents), dtype=int)
+        self.agent_locations = np.zeros((self._num_agents, 2), dtype=int)
 
-        self._map_name = map_name
-        self._obs_mat = None
+        self.num_maps = 50
+        self.map_dir_path = os.path.join(os.curdir, f'obstacle_mats/{map_set}/')
+        self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
+        self.obs_mat = None
 
         self._action_to_direction = {
             Actions.right.value: np.array([0, 1]),
@@ -68,66 +73,6 @@ class GridWorldEnv(ParallelEnv):
 
         self.window = None
         self.clock = None
-
-    def _build_adj_matrix(self):
-        """Build adjacency matrix based on communication range"""
-        self._adj_matrix = np.zeros((self._num_agents, self._num_agents), dtype=np.int64)
-        for i in range(self._num_agents):
-            for j in range(i + 1, self._num_agents):
-                dist = np.linalg.norm(self._agent_locations[i] - self._agent_locations[j])
-                if dist <= self.cr:
-                    self._adj_matrix[i][j] = 1
-                    self._adj_matrix[j][i] = 1
-
-    def _generate_observation(self, agent_idx):
-        channels = 4
-
-        obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
-
-        # Layer 0: Obstacle Map
-        obs[:, :, 0] = (self.grid < 0).astype(np.float32)
-
-        # Layer 1: Agent's own position
-        agent_pos = self._agent_locations[agent_idx]
-        obs[agent_pos[0], agent_pos[1], 1] = 1.0
-
-        # Layer 2: Other agents' positions
-        for i, pos in enumerate(self._agent_locations):
-            if i != agent_idx:
-                obs[pos[0], pos[1], 2] = 1.0
-
-        # Layer 3: Binary coverage map (1 = visited, 0 = unvisited, -1 = obstacle (count as visited))
-        obs[:, :, 3] = (self.grid != 0).astype(np.float32)
-
-        # TODO -- Layer 4: Euclidian distance to each agent
-
-        return obs
-
-    def _generate_spawns(self, occupied_positions: set):
-        placed_agents = []
-        for i in range(self._num_agents):
-            while True:
-                if len(placed_agents) == 0:  # place first agent
-                    x, y = self.rng.integers(0, self.size, 2)
-                else:
-                    # place others within range of another agent
-                    ref_agent = placed_agents[0]
-
-                    delta_arr = np.array(self.rng.integers(-self.cr, self.cr + 1, 2))
-                    new_agent = ref_agent + delta_arr
-
-                    if np.linalg.norm(ref_agent - new_agent) >= self.cr:
-                        continue
-
-                    x, y = new_agent
-                    x, y = min(max(x, 0), self.size - 1), min(max(y, 0), self.size - 1)
-
-                if (x, y) not in occupied_positions:
-                    self._agent_locations[i] = np.array([x, y])
-                    occupied_positions.add((x, y))
-                    placed_agents.append(np.array([x, y]))
-                    break
-
 
     # For Ray RLlib
     @property
@@ -150,28 +95,66 @@ class GridWorldEnv(ParallelEnv):
         """Return action space for a specific agent"""
         return spaces.Discrete(5)  # 5 actions: right, up, left, down, no-op
 
+    def _build_adj_matrix(self):
+        """Build adjacency matrix based on communication range"""
+        self.adj_matrix = np.zeros((self._num_agents, self._num_agents), dtype=np.int64)
+        for i in range(self._num_agents):
+            for j in range(i + 1, self._num_agents):
+                dist = np.linalg.norm(self.agent_locations[i] - self.agent_locations[j])
+                if dist <= self.cr:
+                    self.adj_matrix[i][j] = 1
+                    self.adj_matrix[j][i] = 1
+
+    def _generate_observation(self, agent_idx):
+        channels = 4
+
+        obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
+
+        # Layer 0: Obstacle Map
+        obs[self.obs_mat[:, 0], self.obs_mat[:, 1], 0] = 1.0
+
+        # Layer 1: Agent's own position
+        agent_pos = self.agent_locations[agent_idx]
+        obs[agent_pos[0], agent_pos[1], 1] = 1.0
+
+        # Layer 2: Other agents' positions
+        for i, pos in enumerate(self.agent_locations):
+            if i != agent_idx:
+                obs[pos[0], pos[1], 2] = 1.0
+
+        # Layer 3: Coverage Map
+        mask = self.visited_tiles == 1
+        obs[mask, 3] = 1.0
+
+        # TODO -- Layer 4: Euclidian distance to each agent
+
+        return obs
+
+    def _generate_spawns(self):
+        self.agent_locations[:, 0] = self.size - 1
+        self.agent_locations[:, 1] = np.arange(self._num_agents)
+        self.visited_tiles[self.size - 1, :self._num_agents] = 1
+
     def reset(self, seed=None, options=None):
         if seed is not None:
             self.rng = np.random.default_rng(seed)
 
+        self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
+        self.visibility_mask = np.zeros((self.size, self.size), dtype=int)
+        self.agent_locations = np.zeros((self._num_agents, 2), dtype=int)
         self.agents = copy(self.possible_agents)
         self.timestep = 0
-        self.grid = np.zeros((self.size, self.size), dtype=np.int8)
 
-        if self._obs_mat is None:
-            obs_mat = np.loadtxt(f"env/obstacle_mats/{self._map_name}", delimiter=' ', dtype='int')
-            self._obs_mat = [(x, y) for x, y in obs_mat]
+        if not self.map_indices:
+            self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
 
-        self.max_coverage = self.size**2 - len(self._obs_mat)
+        mat_idx = self.map_indices.pop()
+        map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')  # TODO -- replace w real map indices
+        self.obs_mat = np.loadtxt(map_path, delimiter=' ', dtype='int')
 
-        for i, (row, col) in enumerate(self._obs_mat):
-            self.grid[row, col] = -1
+        self.max_coverage = self.size**2 - len(self.obs_mat)
 
-        self._generate_spawns(set(self._obs_mat))
-
-        for pos in self._agent_locations:
-            self.grid[pos[0], pos[1]] = 1
-
+        self._generate_spawns()
         self._build_adj_matrix()
 
         observations = {}
@@ -179,7 +162,7 @@ class GridWorldEnv(ParallelEnv):
         for i, agent in enumerate(self.agents):
             observations[agent] = self._generate_observation(i)
             infos[agent] = {
-                "coverage": np.sum(self.grid > 0) / self.max_coverage,
+                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage,
                 "step": self.timestep,
                 "connection_broken": False,
             }
@@ -193,13 +176,13 @@ class GridWorldEnv(ParallelEnv):
         """Execute one step for all agents"""
         self.timestep += 1
 
-        previous_locations = self._agent_locations.copy()
-
         rewards = {agent: 0.0 for agent in self.agents}
         terminated = {agent: False for agent in self.agents}
         truncated = {agent: False for agent in self.agents}
 
-        occupied_positions = set(self._obs_mat)
+        previous_locations = self.agent_locations.copy()
+
+        occupied_positions = set([(x, y) for x, y in self.obs_mat])
         for pos in previous_locations:
             occupied_positions.add(tuple(pos))
 
@@ -220,47 +203,43 @@ class GridWorldEnv(ParallelEnv):
                 new_positions.append(previous_locations[i])
                 occupied_positions.add(tuple(previous_locations[i]))
 
-        self._agent_locations = np.array(new_positions)
+        self.agent_locations = np.array(new_positions)
 
         self._build_adj_matrix()
-        G = nx.from_numpy_array(self._adj_matrix)
+        G = nx.from_numpy_array(self.adj_matrix)
         connected = nx.is_connected(G)
 
         # Calculate rewards
         for i, agent in enumerate(self.agents):
-            current_pos = self._agent_locations[i]
+            current_pos = self.agent_locations[i]
             previous_pos = previous_locations[i]
 
             # Check if the agent moved
             if not np.array_equal(current_pos, previous_pos):
-                if self.grid[current_pos[0], current_pos[1]] == 0 and connected:
-                    rewards[agent] += self._new_tile_connected
-                elif self.grid[current_pos[0], current_pos[1]] == 0:
-                    rewards[agent] += self._new_tile_disconnected
-                elif connected:
-                    rewards[agent] += self._old_tile_connected
+                if self.visited_tiles[current_pos[0], current_pos[1]] == 0:
+                    rewards[agent] += self.new_tile_visited
                 else:
-                    rewards[agent] += self._old_tile_disconnected
+                    rewards[agent] += self.old_tile_visited
 
-                self.grid[current_pos[0], current_pos[1]] = 1
+                self.visited_tiles[current_pos[0], current_pos[1]] = 1
             else:
                 # collision or no-op
-                rewards[agent] += self._obs_penalty
+                rewards[agent] += self.obstacle_penalty
 
         observations = {}
         infos = {}
         for i, agent in enumerate(self.agents):
             observations[agent] = self._generate_observation(i)
             infos[agent] = {
-                "coverage": np.sum(self.grid > 0) / self.max_coverage,
+                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage,
                 "step": self.timestep,
                 "connection_broken": not connected,
             }
 
-        all_visited = np.sum(self.grid > 0) == self.max_coverage
+        all_visited = np.sum(self.visited_tiles > 0) == self.max_coverage
         if all_visited:
             for agent in self.agents:
-                rewards[agent] += self._termination_bonus
+                rewards[agent] += self.termination_bonus
             terminated = {agent: True for agent in self.agents}
             self.agents = []
 
@@ -308,7 +287,7 @@ class GridWorldEnv(ParallelEnv):
         # Draw visited cells
         for i in range(self.size):
             for j in range(self.size):
-                if self.grid[i, j] > 0:
+                if self.visited_tiles[i, j] > 0:
                     # Light blue for visited cells
                     pygame.draw.rect(
                         canvas,
@@ -316,15 +295,15 @@ class GridWorldEnv(ParallelEnv):
                         pygame.Rect(
                             pix_square_size * np.array([j, i]), # flip coords for pygame rendering
                             (pix_square_size, pix_square_size),
-                        ),
+                            ),
                     )
 
-        for (x, y) in self._obs_mat:
+        for obstacle in self.obs_mat:
             pygame.draw.rect(
                 canvas,
                 (0, 0, 0), # Black for obstacles
                 pygame.Rect(
-                    pix_square_size * np.array([y, x]),  # flip coords for pygame rendering
+                    pix_square_size * np.flip(obstacle),  # flip coords for pygame rendering
                     (pix_square_size, pix_square_size),
                 ),
             )
@@ -347,9 +326,9 @@ class GridWorldEnv(ParallelEnv):
             )
 
         # Draw communication links between agents
-        G = nx.from_numpy_array(self._adj_matrix)
+        G = nx.from_numpy_array(self.adj_matrix)
         for a, b in G.edges():
-            (ax, ay), (bx, by) = self._agent_locations[a], self._agent_locations[b]
+            (ax, ay), (bx, by) = self.agent_locations[a], self.agent_locations[b]
             pygame.draw.line(
                 canvas,
                 (255, 0, 0),  # Red for communication links
@@ -359,7 +338,7 @@ class GridWorldEnv(ParallelEnv):
             )
 
         # Draw agents
-        for i, (x, y) in enumerate(self._agent_locations):
+        for i, (x, y) in enumerate(self.agent_locations):
             # Draw agent circle
             pygame.draw.circle(
                 canvas,
@@ -375,7 +354,7 @@ class GridWorldEnv(ParallelEnv):
             canvas.blit(text, text_rect)
 
         # Display coverage percentage
-        coverage = np.sum(self.grid > 0) / self.max_coverage * 100
+        coverage = len(self.visited_tiles) / self.max_coverage * 100
         font = pygame.font.SysFont(None, 30)
         text = font.render(f"Coverage: {coverage:.1f}% | Step: {self.timestep}", True, (0, 0, 0))
         canvas.blit(text, (10, 10))
@@ -397,6 +376,16 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    env = GridWorldEnv()
-    parallel_api_test(env, num_cycles=1_000_000)
+    env = GridWorldEnv({}, {}, render_mode="human")
+
+    for i in range(10):
+        obs, _ = env.reset()
+        episode_over = False
+        while not episode_over:
+            vals = np.random.default_rng().integers(low=0, high=5, size=5)
+            actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(vals)}
+            observations, rewards, terminated, truncated, infos = env.step(actions_dict)
+            episode_over = all(terminated.values()) or all(truncated.values())
+
+    # parallel_api_test(env, num_cycles=1_000_000)
     env.close()

@@ -1,19 +1,14 @@
+import numpy as np
+import random
+from collections import deque
 import matplotlib.pyplot as plt
-from ray.rllib.algorithms.ppo import PPOConfig
-from ray.rllib.models import ModelCatalog
-from ray.rllib.policy.policy import PolicySpec
-
-from env.grid_world import GridWorldEnv
-from models.rl_wrappers import CustomTorchModelV2
 
 
 def parse_optimizer(parser):
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--num_test_episodes', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--centralized_critic', action='store_true')
-    parser.add_argument('--model_name', type=str, default='new_model')
-    parser.add_argument('--config', type=str, default="default")
+    parser.add_argument('--model_name', type=str, default='')
+    parser.add_argument('--config', type=str, default='default')
 
 def plot_metrics(metrics: [[float, float]], name: str):
     mean_rewards = [m[0] for m in metrics]
@@ -25,83 +20,107 @@ def plot_metrics(metrics: [[float, float]], name: str):
     axs[0].plot(iterations, mean_rewards, label="Mean Reward", color='blue')
     axs[0].set_ylabel("Mean Reward")
     axs[0].set_title("Training Progress")
-    axs[0].grid(True)
+    axs[0].visited_tiles(True)
 
     axs[1].plot(iterations, mean_lengths, label="Mean Episode Length", color='green')
     axs[1].set_xlabel("Iteration")
     axs[1].set_ylabel("Mean Episode Length")
-    axs[1].grid(True)
+    axs[1].visited_tiles(True)
 
     plt.tight_layout()
     plt.savefig(f'{name}_metrics.png')
     plt.show()
 
-def build_config(env_config: dict, training_config: dict):
-    dummy_env = GridWorldEnv(**env_config)
+def generate_obstacles(grid_size=25, obstacle_density=0.15, max_attempts=100, seed=None):
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
 
-    # PPO training parameters
-    ppo_params = dict(
-        gamma=training_config["gamma"],
-        lr=training_config["lr"],
-        grad_clip=training_config["grad_clip"],
-        train_batch_size=training_config["train_batch_size"],
-        num_epochs=training_config["num_epochs"],
-        minibatch_size=training_config["minibatch_size"],
-        optimizer={"weight_decay": training_config["l2_regularization"]},
-        lambda_=0.9,
-        entropy_coeff=0.01,
-    )
+    def flood_fill(grid, start):
+        visited = np.zeros_like(grid, dtype=bool)
+        queue = deque([start])
+        visited[start] = True
+        count = 1
+        while queue:
+            r, c = queue.popleft()
+            for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < grid.shape[0] and 0 <= nc < grid.shape[1]:
+                    if not visited[nr, nc] and grid[nr, nc] == 0:
+                        visited[nr, nc] = True
+                        queue.append((nr, nc))
+                        count += 1
+        return count
 
-    config = decentralized_config(env_config, ppo_params, dummy_env)
+    def is_connected(grid):
+        free_positions = np.argwhere(grid == 0)
+        if len(free_positions) == 0:
+            return False
+        start = tuple(free_positions[0])
+        filled = flood_fill(grid, start)
+        return filled == len(free_positions)
 
-    dummy_env.close()
-    # config.log_level = "DEBUG"
-    return config.build_algo()
+    total_tiles = grid_size * grid_size
+    max_obstacles = int(obstacle_density * total_tiles)
 
-def decentralized_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldEnv) -> PPOConfig:
-    ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
+    for attempt in range(max_attempts):
+        grid = np.zeros((grid_size, grid_size), dtype=np.int8)
+        obstacles_placed = 0
+        while obstacles_placed < max_obstacles:
+            shape_type = random.choice(["point", "rect", "line"])
+            r, c = random.randint(0, grid_size - 2), random.randint(0, grid_size - 1)
 
-    config = (
-        PPOConfig()
-        .environment(
-            env="grid_world",
-            env_config=env_config,
-        )
-        .framework("torch")
-        .multi_agent(
-            policies={
-                "shared_policy": PolicySpec(
-                    policy_class=None,  # Default to PPO
-                    observation_space=dummy_env.observation_space("agent_0"),
-                    action_space=dummy_env.action_space("agent_0"),
-                )
-            },
-            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy"
-        )
-        .training(
-            model={
-                "custom_model": "shared_cnn",
-            },
-            use_gae=True,
-            use_critic=True,
-            **ppo_params
-        )
-        .env_runners(
-            num_env_runners=4,
-            num_envs_per_env_runner=2,
-            rollout_fragment_length="auto"
-        )
-        .resources(
-            num_gpus=1
-        )
-        .evaluation(
-            evaluation_num_env_runners=0,
-            evaluation_interval=None
-        )
-        .api_stack(
-            enable_env_runner_and_connector_v2=False,
-            enable_rl_module_and_learner=False,
-        )
-    )
+            if shape_type == "point":
+                if grid[r, c] == 0:
+                    grid[r, c] = 1
+                    obstacles_placed += 1
 
-    return config
+            elif shape_type == "rect":
+                h, w = random.randint(1, 3), random.randint(1, 3)
+                r2, c2 = min(r + h, grid_size), min(c + w, grid_size)
+                subgrid = grid[r:r2, c:c2]
+                free_space = (subgrid == 0)
+                num_new = np.sum(free_space)
+                if obstacles_placed + num_new <= max_obstacles:
+                    subgrid[free_space] = 1
+                    obstacles_placed += num_new
+
+            elif shape_type == "line":
+                length = random.randint(3, 6)
+                if random.random() < 0.5:  # horizontal
+                    c2 = min(c + length, grid_size)
+                    line = grid[r, c:c2]
+                    free_space = (line == 0)
+                    num_new = np.sum(free_space)
+                    if obstacles_placed + num_new <= max_obstacles:
+                        line[free_space] = 1
+                        obstacles_placed += num_new
+                else:  # vertical
+                    r2 = min(r + length, grid_size)
+                    line = grid[r:r2, c]
+                    free_space = (line == 0)
+                    num_new = np.sum(free_space)
+                    if obstacles_placed + num_new <= max_obstacles:
+                        line[free_space] = 1
+                        obstacles_placed += num_new
+
+        if is_connected(grid):
+            grid[grid_size - 3 :, :] = 0
+            return grid
+
+    raise RuntimeError("Failed to generate a valid obstacle map after multiple attempts.")
+
+def save_obstacle_map(grid, filename):
+    with open(filename, 'w') as f:
+        for r in range(grid.shape[0]):
+            for c in range(grid.shape[1]):
+                if grid[r, c] == 1:
+                    f.write(f"{r} {c}\n")
+
+def gen_train_test_split():
+    for i in range(50):
+        grid = generate_obstacles()
+        save_obstacle_map(grid, f'env/obstacle_mats/training/mat{i}')
+    for i in range(2, 50):
+        grid = generate_obstacles()
+        save_obstacle_map(grid, f'env/obstacle_mats/testing/mat{i}')
