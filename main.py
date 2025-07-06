@@ -35,12 +35,11 @@ def main():
         render_mode = "human"
     else:
         map_dir_path = "./env/obstacle-mats/training"
-        render_mode = "human"
+        render_mode = "rgb_array"  # TODO change!!!
 
     env_config = dict(
         map_dir_path=map_dir_path,
         render_mode=render_mode,
-        seed=42,
         reward_scheme=config['reward_scheme'],
         **config['environment']
     )

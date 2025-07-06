@@ -9,7 +9,7 @@ from models.rl_wrapper import CustomTorchModelV2
 
 
 def test_one_episode(test_env: ParallelPettingZooEnv, model: Algorithm):
-    observations = test_env.reset()
+    observations, _ = test_env.reset()
     episode_over = False
     total_reward, steps, num_breaks = 0, 0, 0
     while not episode_over:
@@ -36,12 +36,12 @@ def test(args, env_config, test_config) -> None:
     print("Testing Parameters:")
     print("-"*50)
     print(f"Using device: {args.device}")
-    print(f"Seed: {args.seed}")
-    print(f"Model Name: {args.model_name}")
     print(f"Config: {args.config}")
     print("-"*50)
 
-    checkpoint_dir = os.path.abspath(f"models/saved/{args.model_name}")
+    env_config["seed"] = env_config.get("seed", 42)
+
+    checkpoint_dir = os.path.abspath(f"experiments/default-env/v1/saved")
 
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
     tester = Algorithm.from_checkpoint(checkpoint_dir)
@@ -60,22 +60,21 @@ def test(args, env_config, test_config) -> None:
         print(f"| {'Percentage Connected:':<20} {round(100 * (1 - (brk / stp)), 2):>13}% |")
         print("-"*40)
 
-    demo_env = ParallelPettingZooEnv(GridWorldEnv(**env_config))
+    demo_env = ParallelPettingZooEnv(GridWorldEnv(env_config))
 
     reward, steps, num_breaks = test_one_episode(demo_env, tester)
     demo_env.close()
 
     pretty_print(f"Metrics for Demo Episode", reward, steps, num_breaks)
 
-    num_episodes = args.num_test_episodes
+    num_episodes = test_config.get("num_episodes_per_map", 10)
+    # num_episodes = 50 * test_config.get("num_episodes_per_map", 10)
     epis_connected = 0
     if num_episodes > 1:
         print(f"Running {num_episodes} more test episodes...")
-        env_config["render_mode"] = "rgb_array"
-        game_env = ParallelPettingZooEnv(GridWorldEnv(**env_config))
+        game_env = ParallelPettingZooEnv(GridWorldEnv(env_config))
 
         total_reward, total_steps, total_breaks = 0, 0, 0
-        num_episodes = args.num_test_episodes
         for i in range(num_episodes):
             print(f"\r{i}/{num_episodes}", end="")
             reward, steps, num_breaks = test_one_episode(game_env, tester)

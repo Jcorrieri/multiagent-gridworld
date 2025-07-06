@@ -53,6 +53,7 @@ class GridWorldEnv(ParallelEnv):
         reward_scheme = env_params.get("reward_scheme", {})
         self.new_tile_visited = reward_scheme.get("new_tile_visited", 2.0)
         self.old_tile_visited = reward_scheme.get("old_tile_visited", -0.1)
+        self.disconnected_penalty = reward_scheme.get("disconnected", -4.0)
         self.obstacle_penalty = reward_scheme.get("obstacle", -1.0)
         self.termination_bonus = reward_scheme.get("terminated", 480)
 
@@ -168,7 +169,7 @@ class GridWorldEnv(ParallelEnv):
 
         self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
 
-        self.max_coverage = self.size**2 - len(self.obs_mat)
+        self.max_coverage = self.size**2
 
         self._generate_spawns()
         self._build_adj_matrix()
@@ -213,11 +214,11 @@ class GridWorldEnv(ParallelEnv):
             pos_tuple = tuple(proposed_position)
             if pos_tuple not in occupied_positions:
                 new_positions.append(proposed_position)
+                occupied_positions.remove(tuple(previous_locations[i]))
                 occupied_positions.add(pos_tuple)
             else:
                 # If collision, don't move
                 new_positions.append(previous_locations[i])
-                occupied_positions.add(tuple(previous_locations[i]))
 
         if self.base_station:
             new_positions.append((self.size - 1,0))
@@ -243,6 +244,10 @@ class GridWorldEnv(ParallelEnv):
             else:
                 # collision or no-op
                 rewards[agent] += self.obstacle_penalty
+
+        if not connected:
+            for agent in self.agents:
+                rewards[agent] += self.disconnected_penalty
 
         observations = {}
         infos = {}
@@ -394,7 +399,7 @@ class GridWorldEnv(ParallelEnv):
             canvas.blit(text, text_rect)
 
         # Display coverage percentage
-        coverage = len(self.visited_tiles) / self.max_coverage * 100
+        coverage = np.sum(self.visited_tiles > 0) / self.max_coverage * 100
         font = pygame.font.SysFont(None, 30)
         text = font.render(f"Coverage: {coverage:.1f}% | Step: {self.timestep}", True, (0, 0, 0))
         canvas.blit(text, (10, 10))

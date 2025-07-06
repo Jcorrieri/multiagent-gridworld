@@ -4,15 +4,15 @@ environment:
     fov: 25
     max_steps: 1000
     size: 25
-    num_agents: 10
+    num_agents: 5
     cr: 10
 
 reward_scheme:
     new_tile_visited: 2.0
     old_tile_visited: -0.1
-    disconnected: -2.5
-    obstacle: -0.2
-    terminated: 100
+    disconnected: -4.0
+    obstacle: -1.0
+    terminated: 480
 
 training:
     gamma: 0.9
@@ -22,11 +22,10 @@ training:
     num_passes: 5
     minibatch_size: 800
     l2_regularization: 0.0001
-    num_episodes: 20
+    num_episodes: 8000
     target_reward: 2400
 
 testing:
     num_episodes_per_map: 10
-    seed: 4210
     explore: False
     render: False
