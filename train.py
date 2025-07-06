@@ -64,8 +64,8 @@ def get_default_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldE
             **ppo_params
         )
         .env_runners(
-            num_env_runners=0,
-            num_envs_per_env_runner=1,
+            num_env_runners=4,
+            num_envs_per_env_runner=2,
             rollout_fragment_length="auto"
         )
         .resources(
@@ -137,20 +137,30 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*100 + "\n\nBeginning Training...\n")
 
     max_rew_epi_count = 0
-    target_rew = training_config['target_reward']
+    target_rew = training_config["target_reward"]
     best_score = -np.inf
+    episodes_elapsed = 0
+
+    num_episodes = training_config["num_episodes"]
+    train_batch_size = training_config["train_batch_size"]
+    max_steps = env_config["max_steps"]
+
     data = []
-    num_iterations = training_config['num_episodes']
+    num_iterations = int(num_episodes / (train_batch_size / max_steps))
     for i in range(num_iterations):
         result = trainer.train()
 
-        episode_reward_mean = result["env_runners"]['episode_reward_mean']
-        episode_len_mean = result["env_runners"]['episode_len_mean']
-        print(f"\rIteration {i}/{num_iterations}, total reward = {episode_reward_mean:.2f}, average length: {episode_len_mean}", end="")
+        episode_reward_mean = result["env_runners"]["episode_reward_mean"]
+        episode_len_mean = result["env_runners"]["episode_len_mean"]
+        episodes_elapsed += result["env_runners"]["num_episodes"]
+        print(f"\rIteration {i + 1}/{num_iterations}, "
+              f"episode: {episodes_elapsed}, "
+              f"total reward: {episode_reward_mean:.2f}, "
+              f"average length: {episode_len_mean:.2f}", end="")
 
-        data.append([episode_reward_mean, episode_len_mean])
+        data.append([episode_reward_mean, episode_len_mean, episodes_elapsed])
 
-        if i != 0 and i % 1500 == 0:
+        if i != 0 and i % 200 == 0:
             os.mkdir(f"{ckpt_dir}/{(i // 1500)}/")
             trainer.save_checkpoint(f"{ckpt_dir}/{(i // 1500)}/")
 
