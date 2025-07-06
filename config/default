@@ -1,10 +1,10 @@
 environment:
     env_name: gridworld
-    base_station: False
+    base_station: True
     fov: 25
     max_steps: 1000
     size: 25
-    num_agents: 10
+    num_agents: 5
     cr: 10
 
 reward_scheme:
