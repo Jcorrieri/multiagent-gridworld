@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 
 import numpy as np
 
@@ -85,7 +86,7 @@ def get_default_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldE
 def create_model_directories(env_config: dict, args: argparse.Namespace):
     if env_config['env_name'] == "gridworld":
         if env_config['base_station']:
-            experiment_dir = 'experiments/fixed-station'
+            experiment_dir = 'experiments/base-station'
         else:
             experiment_dir = 'experiments/default-env'
     else:
@@ -111,6 +112,8 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
         if os.path.exists(path):
             os.rmdir(path)
         os.makedirs(path)
+
+    shutil.copy(f"config/{args.config}", f'{model_dir}/config')
 
     return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
 

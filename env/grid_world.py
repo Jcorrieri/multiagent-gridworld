@@ -27,7 +27,7 @@ class GridWorldEnv(ParallelEnv):
     metadata = {
         "name": "gridworld",
         "render_modes": ["human", "rgb_array"],
-        "render_fps": 60
+        "render_fps": 24
     }
 
     def __init__(self, env_params, **kwargs):       
@@ -36,8 +36,12 @@ class GridWorldEnv(ParallelEnv):
         self.rng = np.random.default_rng(env_params.get("seed", 42))
 
         self._num_agents = env_params.get("num_agents", 5)
+        self.base_station = env_params.get("base_station", False)
         self.possible_agents = [f"agent_{i}" for i in range(self._num_agents)]
         self.agents = []
+
+        if self.base_station:
+            self._num_agents += 1
 
         self.cr = env_params.get("cr", 10)
         self.fov_range = env_params.get("fov", 25)
@@ -135,8 +139,14 @@ class GridWorldEnv(ParallelEnv):
         return obs
 
     def _generate_spawns(self):
+        if self.base_station:
+            station_offset = 1
+            self.agent_locations[self._num_agents - 1][1] = 0
+        else:
+            station_offset = 0
+
         self.agent_locations[:, 0] = self.size - 1
-        self.agent_locations[:, 1] = np.arange(self._num_agents)
+        self.agent_locations[:self._num_agents - station_offset, 1] = np.arange(station_offset, self._num_agents)
         self.visited_tiles[self.size - 1, :self._num_agents] = 1
 
     def reset(self, seed=None, options=None):
@@ -170,7 +180,7 @@ class GridWorldEnv(ParallelEnv):
             infos[agent] = {
                 "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage,
                 "step": self.timestep,
-                "connection_broken": False,
+                "c onnection_broken": False,
             }
 
         if self.render_mode == "human":
@@ -209,6 +219,8 @@ class GridWorldEnv(ParallelEnv):
                 new_positions.append(previous_locations[i])
                 occupied_positions.add(tuple(previous_locations[i]))
 
+        if self.base_station:
+            new_positions.append((self.size - 1,0))
         self.agent_locations = np.array(new_positions)
 
         self._build_adj_matrix()
@@ -343,8 +355,30 @@ class GridWorldEnv(ParallelEnv):
                 width=2,
             )
 
+        # Draw base station if it exists
+        if self.base_station:
+            station_offset = 1
+
+            top_left_x = (0 + 0.55) * pix_square_size - pix_square_size / 3
+            top_left_y = ((self.size - 1) + 0.55) * pix_square_size - pix_square_size / 3
+
+            # Draw station
+            pygame.draw.rect(
+                canvas,
+                (105, 105, 105),
+                pygame.Rect(top_left_x, top_left_y, pix_square_size / 1.5, pix_square_size / 1.5)
+            )
+
+            # Draw agent ID (centered)
+            font = pygame.font.SysFont(None, int(pix_square_size * 0.7))
+            text = font.render("B", True, (0, 0, 0))
+            text_rect = text.get_rect(center=((0 + 0.5) * pix_square_size, ((self.size - 1) + 0.5) * pix_square_size))
+            canvas.blit(text, text_rect)
+        else:
+            station_offset = 0
+
         # Draw agents
-        for i, (x, y) in enumerate(self.agent_locations):
+        for i, (x, y) in enumerate(self.agent_locations[:self._num_agents - station_offset]):
             # Draw agent circle
             pygame.draw.circle(
                 canvas,
@@ -382,16 +416,16 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing'})
+    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing', 'base_station': False})
 
-    for i in range(100):
-        obs, _ = env.reset()
-        episode_over = False
-        while not episode_over:
-            vals = np.random.default_rng().integers(low=0, high=5, size=5)
-            actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(vals)}
-            observations, rewards, terminated, truncated, infos = env.step(actions_dict)
-            episode_over = all(terminated.values()) or all(truncated.values())
+    # unit test -- default env
+    obs, _ = env.reset()
+    episode_over = False
+    while not episode_over:
+        vals = np.random.default_rng().integers(low=0, high=5, size=5)
+        actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(vals)}
+        observations, rewards, terminated, truncated, infos = env.step(actions_dict)
+        episode_over = all(terminated.values()) or all(truncated.values())
 
     # parallel_api_test(env, num_cycles=1_000_000)
     env.close()
