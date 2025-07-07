@@ -25,8 +25,9 @@ def build_config(env_config: dict, training_config: dict):
         num_epochs=training_config.get("num_passes", 5),
         minibatch_size=training_config.get("minibatch_size", 800),
         optimizer={"weight_decay": training_config.get("l2_regularization", 0.001)},
-        lambda_=0.9,
-        entropy_coeff=0.01,
+        lambda_=training_config.get("lambda_", 0.95),
+        entropy_coeff_schedule=training_config.get("entropy_coeff", None),
+        clip_param=training_config.get("clip_param", 0.3)
     )
 
     config = get_default_config(
@@ -72,12 +73,12 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
             **ppo_params
         )
         .env_runners(
-            num_env_runners=4,
-            num_envs_per_env_runner=2,
+            num_env_runners=0,
+            num_envs_per_env_runner=1,
             rollout_fragment_length="auto"
         )
         .resources(
-            num_gpus=1
+            num_gpus=0
         )
         .evaluation(
             evaluation_num_env_runners=0,
@@ -125,6 +126,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("Training Parameters:")
     print("-"*50)
     print(f"Using device: {args.device}")
+    print(f"Module: {training_config['module_file']}")
     print("-"*50)
 
     print("\nBuilding Ray Trainer...\n")

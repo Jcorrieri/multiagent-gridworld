@@ -94,7 +94,7 @@ def test(env_config, test_config) -> None:
         print(f"| {'Coverage:':<20} {avg_coverage:>15} |")
         print(f"| {'Num Disconnects:':<20} {avg_breaks:>15} |")
         print(f"| {'Percentage Connected:':<20} {percent_connected:>13}% |")
-        print(f"| {'Communication Ratio:':<20} {comm_ratio:>15}")
+        print(f"| {'Communication Ratio:':<20} {comm_ratio:>15}%")
         print("-"*40)
 
         csv_data = {
