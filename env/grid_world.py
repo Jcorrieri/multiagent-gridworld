@@ -33,7 +33,7 @@ class GridWorldEnv(ParallelEnv):
     def __init__(self, env_params, **kwargs):       
         self.size = env_params.get("size", 25)
         self.window_size = 512
-        self.rng = np.random.default_rng(env_params.get("seed", 42))
+        self.rng = np.random.default_rng(env_params.get("seed", None))
 
         self._num_agents = env_params.get("num_agents", 5)
         self.base_station = env_params.get("base_station", False)

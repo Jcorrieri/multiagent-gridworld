@@ -20,12 +20,12 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.device = device
 
-    torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
-
-    with open(f"config/default", 'r') as f:
+    with open(f"config/{args.config}", 'r') as f:
         config = yaml.safe_load(f)
+
+    torch.manual_seed(config['testing'].get("seed", 42))
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(config['testing'].get("seed", 42))
 
     # for rllib
     register_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
