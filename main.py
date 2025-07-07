@@ -32,20 +32,18 @@ def main():
 
     if args.test:
         map_dir_path = "./env/obstacle-mats/testing"
-        render_mode = "human"
     else:
         map_dir_path = "./env/obstacle-mats/training"
-        render_mode = "rgb_array"  # TODO change!!!
 
     env_config = dict(
         map_dir_path=map_dir_path,
-        render_mode=render_mode,
+        render_mode="rgb_array",
         reward_scheme=config['reward_scheme'],
         **config['environment']
     )
 
     if args.test:
-        test(args, env_config, config['testing'])
+        test(env_config, config['testing'])
     else:
         train(args, env_config, config['training'])
 

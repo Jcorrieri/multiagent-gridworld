@@ -13,7 +13,7 @@ class CustomTorchModelV2(TorchModelV2, nn.Module):
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
 
-        module_file = kwargs["module_file"]
+        module_file = kwargs.get("module_file", "cnn_1conv3linear.py")
         if ".py" not in module_file:
             module_file += ".py"
 

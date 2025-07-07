@@ -51,9 +51,10 @@ class GridWorldEnv(ParallelEnv):
 
         # reward
         reward_scheme = env_params.get("reward_scheme", {})
-        self.new_tile_visited = reward_scheme.get("new_tile_visited", 2.0)
-        self.old_tile_visited = reward_scheme.get("old_tile_visited", -0.1)
-        self.disconnected_penalty = reward_scheme.get("disconnected", -4.0)
+        self.new_tile_visited_connected = reward_scheme.get("new_tile_visited_connected", 2.0)
+        self.old_tile_visited_connected = reward_scheme.get("old_tile_visited_connected", -0.1)
+        self.new_tile_visited_disconnected = reward_scheme.get("new_tile_visited_disconnected", -4.0)
+        self.old_tile_visited_disconnected = reward_scheme.get("old_tile_visited_disconnected", -4.0)
         self.obstacle_penalty = reward_scheme.get("obstacle", -1.0)
         self.termination_bonus = reward_scheme.get("terminated", 480)
 
@@ -179,9 +180,9 @@ class GridWorldEnv(ParallelEnv):
         for i, agent in enumerate(self.agents):
             observations[agent] = self._generate_observation(i)
             infos[agent] = {
-                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage,
+                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage * 100,
                 "step": self.timestep,
-                "c onnection_broken": False,
+                "connection_broken": False,
             }
 
         if self.render_mode == "human":
@@ -235,26 +236,26 @@ class GridWorldEnv(ParallelEnv):
 
             # Check if the agent moved
             if not np.array_equal(current_pos, previous_pos):
-                if self.visited_tiles[current_pos[0], current_pos[1]] == 0:
-                    rewards[agent] += self.new_tile_visited
+                if self.visited_tiles[current_pos[0], current_pos[1]] == 0 and connected:
+                    rewards[agent] += self.new_tile_visited_connected
+                elif self.visited_tiles[current_pos[0], current_pos[1]] == 0:
+                    rewards[agent] += self.new_tile_visited_disconnected
+                elif connected:
+                    rewards[agent] += self.old_tile_visited_connected
                 else:
-                    rewards[agent] += self.old_tile_visited
+                    rewards[agent] += self.old_tile_visited_disconnected
 
                 self.visited_tiles[current_pos[0], current_pos[1]] = 1
             else:
                 # collision or no-op
                 rewards[agent] += self.obstacle_penalty
 
-        if not connected:
-            for agent in self.agents:
-                rewards[agent] += self.disconnected_penalty
-
         observations = {}
         infos = {}
         for i, agent in enumerate(self.agents):
             observations[agent] = self._generate_observation(i)
             infos[agent] = {
-                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage,
+                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage * 100,
                 "step": self.timestep,
                 "connection_broken": not connected,
             }
@@ -401,7 +402,7 @@ class GridWorldEnv(ParallelEnv):
         # Display coverage percentage
         coverage = np.sum(self.visited_tiles > 0) / self.max_coverage * 100
         font = pygame.font.SysFont(None, 30)
-        text = font.render(f"Coverage: {coverage:.1f}% | Step: {self.timestep}", True, (0, 0, 0))
+        text = font.render(f"Coverage: {coverage:.1f}% | Step: {self.timestep}", True, (0, 150, 0))
         canvas.blit(text, (10, 10))
 
         if self.render_mode == "human":
