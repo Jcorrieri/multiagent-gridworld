@@ -24,7 +24,7 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-    with open(f"config/{args.config}", 'r') as f:
+    with open(f"config/default", 'r') as f:
         config = yaml.safe_load(f)
 
     # for rllib

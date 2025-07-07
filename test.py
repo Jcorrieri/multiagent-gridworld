@@ -36,12 +36,18 @@ def test(args, env_config, test_config) -> None:
     print("Testing Parameters:")
     print("-"*50)
     print(f"Using device: {args.device}")
-    print(f"Config: {args.config}")
     print("-"*50)
 
-    env_config["seed"] = env_config.get("seed", 42)
+    env_config["seed"] = test_config.get("seed", 42)
 
-    checkpoint_dir = os.path.abspath(f"experiments/default-env/v1/saved")
+    checkpoint_dir = os.path.abspath(test_config.get("model_path", "experiments/default-env/v1"))
+    if test_config.get("checkpoint", -1) >= 0:
+        checkpoint_dir = os.path.join(checkpoint_dir, f"ckpt/{test_config['checkpoint']}")
+    else:
+        checkpoint_dir = os.path.join(checkpoint_dir, "saved")
+
+    if not os.path.exists(checkpoint_dir):
+        raise FileNotFoundError("Model path does not exist, please check \'model_path\' in the config file.")
 
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
     tester = Algorithm.from_checkpoint(checkpoint_dir)
