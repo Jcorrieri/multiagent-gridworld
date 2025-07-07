@@ -421,7 +421,7 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing', 'base_station': False})
+    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing', 'base_station': True})
 
     # unit test -- default env
     obs, _ = env.reset()

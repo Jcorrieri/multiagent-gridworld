@@ -29,13 +29,18 @@ def build_config(env_config: dict, training_config: dict):
         entropy_coeff=0.01,
     )
 
-    config = get_default_config(env_config, ppo_params, dummy_env)
+    config = get_default_config(
+        env_config,
+        ppo_params,
+        training_config.get("module_file", "cnn_1conv3linear.py"),
+        dummy_env
+    )
 
     dummy_env.close()
     # config.log_level = "DEBUG"
     return config.build_algo()
 
-def get_default_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldEnv) -> PPOConfig:
+def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dummy_env: GridWorldEnv) -> PPOConfig:
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
 
     config = (
@@ -58,6 +63,9 @@ def get_default_config(env_config: dict, ppo_params: dict, dummy_env: GridWorldE
         .training(
             model={
                 "custom_model": "shared_cnn",
+                "custom_model_config": {
+                    "module_file": module_file
+                },
             },
             use_gae=True,
             use_critic=True,
@@ -92,15 +100,11 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
     else:
         experiment_dir = 'experiments/baseline'
 
-
-    if args.model_name != '':
-        model_dir = os.path.join(experiment_dir, args.model_name)
-    else:
-        model_dir = os.path.join(experiment_dir, 'v0')
-        i = 1
-        while os.path.exists(model_dir):
-            model_dir = os.path.join(experiment_dir, f'v{i}')
-            i += 1
+    model_dir = os.path.join(experiment_dir, 'v0')
+    i = 1
+    while os.path.exists(model_dir):
+        model_dir = os.path.join(experiment_dir, f'v{i}')
+        i += 1
 
     ckpt_dir = os.path.join(model_dir, "ckpt")
     save_dir = os.path.join(model_dir, "saved")
@@ -113,7 +117,7 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
             os.rmdir(path)
         os.makedirs(path)
 
-    shutil.copy(f"config/{args.config}", f'{model_dir}/config')
+    shutil.copy(f"config/default", f'{model_dir}/config')
 
     return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
 
@@ -121,7 +125,6 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("Training Parameters:")
     print("-"*50)
     print(f"Using device: {args.device}")
-    print(f"Config: {args.config}")
     print("-"*50)
 
     print("\nBuilding Ray Trainer...\n")
@@ -137,15 +140,16 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*100 + "\n\nBeginning Training...\n")
 
     max_rew_epi_count = 0
+    ckpt_interval = 200
     target_rew = training_config["target_reward"]
     best_score = -np.inf
-    episodes_elapsed = 0
 
     num_episodes = training_config["num_episodes"]
     train_batch_size = training_config["train_batch_size"]
     max_steps = env_config["max_steps"]
 
     data = []
+    episodes_elapsed = 0
     num_iterations = int(num_episodes / (train_batch_size / max_steps))
     for i in range(num_iterations):
         result = trainer.train()
@@ -160,11 +164,11 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
 
         data.append([episode_reward_mean, episode_len_mean, episodes_elapsed])
 
-        if i != 0 and i % 200 == 0:
-            os.mkdir(f"{ckpt_dir}/{(i // 1500)}/")
-            trainer.save_checkpoint(f"{ckpt_dir}/{(i // 1500)}/")
+        if i != 0 and i % ckpt_interval == 0:
+            os.mkdir(f"{ckpt_dir}/{(i // ckpt_interval)}/")
+            trainer.save_checkpoint(f"{ckpt_dir}/{(i // ckpt_interval)}/")
 
-        # Stop training if the average reward reaches target for 20 consecutive episodes
+        # Stop training if the average reward reaches target for 20 consecutive iterations
         if episode_reward_mean >= target_rew:
             if episode_reward_mean > best_score:
                 best_score = episode_reward_mean
