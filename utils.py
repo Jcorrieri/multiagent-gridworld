@@ -31,7 +31,7 @@ def plot_metrics(metrics: [[float, float]], path: str):
     plt.savefig(os.path.join(path, "metrics_plot.png"))
     print(f"Saved training plot to {path}/metrics_plot.png")
 
-def generate_obstacles(grid_size=25, obstacle_density=0.15, max_attempts=100, seed=None):
+def generate_obstacles(grid_size=25, obstacle_density=0.10, max_attempts=100, seed=None):
     if seed is not None:
         random.seed(seed)
         np.random.seed(seed)
@@ -117,10 +117,10 @@ def save_obstacle_map(grid, filename):
                 if grid[r, c] == 1:
                     f.write(f"{r} {c}\n")
 
-def gen_train_test_split():
-    for i in range(50):
-        grid = generate_obstacles()
-        save_obstacle_map(grid, f'env/obstacle_mats/training/mat{i}')
-    for i in range(2, 50):
-        grid = generate_obstacles()
-        save_obstacle_map(grid, f'env/obstacle_mats/testing/mat{i}')
+def gen_train_test_split(obstacle_density=0.10):
+    for i in range(1, 50):
+        grid = generate_obstacles(obstacle_density=obstacle_density)
+        save_obstacle_map(grid, f'env/obstacle-mats/training/mat{i}')
+    for i in range(1, 50):
+        grid = generate_obstacles(obstacle_density=obstacle_density)
+        save_obstacle_map(grid, f'env/obstacle-mats/testing/mat{i}')
