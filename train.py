@@ -73,12 +73,12 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
             **ppo_params
         )
         .env_runners(
-            num_env_runners=0,
-            num_envs_per_env_runner=1,
+            num_env_runners=2,
+            num_envs_per_env_runner=2,
             rollout_fragment_length="auto"
         )
         .resources(
-            num_gpus=0
+            num_gpus=1
         )
         .evaluation(
             evaluation_num_env_runners=0,
