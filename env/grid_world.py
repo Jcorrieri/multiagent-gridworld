@@ -30,7 +30,7 @@ class GridWorldEnv(ParallelEnv):
         "render_fps": 24
     }
 
-    def __init__(self, env_params, **kwargs):       
+    def __init__(self, env_params, **kwargs):
         self.size = env_params.get("size", 25)
         self.window_size = 512
         self.rng = np.random.default_rng(env_params.get("seed", None))
@@ -113,12 +113,25 @@ class GridWorldEnv(ParallelEnv):
                     self.adj_matrix[j][i] = 1
 
     def _generate_observation(self, agent_idx):
-        channels = 5 if self.fov_range < self.size else 4  # add visibility mask if using local fovs
+        use_local_fov = self.fov_range < self.size
+
+        channels = 5 if use_local_fov else 4  # add visibility mask if using local fovs
 
         obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
 
         # Layer 0: Obstacle Map
-        obs[self.obs_mat[:, 0], self.obs_mat[:, 1], 0] = 1.0
+        if use_local_fov:
+            mask_bool = self.visibility_mask == 1
+            mask_indices = np.argwhere(mask_bool)
+
+            coords_set = set(map(tuple, self.obs_mat))
+            mask_set = set(map(tuple, mask_indices))
+
+            intersect = coords_set & mask_set
+            for r, c in intersect:
+                obs[r, c, 0] = 1.0
+        else:
+            obs[self.obs_mat[:, 0], self.obs_mat[:, 1], 0] = 1.0
 
         # Layer 1: Agent's own position
         agent_pos = self.agent_locations[agent_idx]
@@ -134,11 +147,25 @@ class GridWorldEnv(ParallelEnv):
         obs[mask, 3] = 1.0
 
         # Layer 4 (Optional): Visibility Mask
-        if self.fov_range < self.size:
+        if use_local_fov:
             mask = self.visibility_mask == 1
             obs[mask, 4] = 1.0
 
         return obs
+
+    def _generate_local_obs(self):
+        for i, agent in enumerate(self.agents):
+            center_r, center_c = self.agent_locations[i]
+
+            r_start = max(0, center_r - self.fov_range)
+            r_end = min(self.size, center_r + self.fov_range + 1)  # +1 to account for exclusive Python slicing
+            c_start = max(0, center_c - self.fov_range)
+            c_end = min(self.size, center_c + self.fov_range + 1)
+
+            rr, cc = np.meshgrid(range(r_start, r_end), range(c_start, c_end), indexing='ij')
+            locations = np.stack((rr, cc), axis=-1).reshape(-1, 2)  # all visible tiles
+
+            self.visibility_mask[locations[:, 0], locations[:, 1]] = 1
 
     def _generate_spawns(self):
         if self.base_station:
@@ -250,6 +277,9 @@ class GridWorldEnv(ParallelEnv):
                 # collision or no-op
                 rewards[agent] += self.obstacle_penalty
 
+        if self.fov_range < 25:
+            self._generate_local_obs()
+
         observations = {}
         infos = {}
         for i, agent in enumerate(self.agents):
@@ -329,7 +359,7 @@ class GridWorldEnv(ParallelEnv):
                 pygame.Rect(
                     pix_square_size * np.flip(obstacle),  # flip coords for pygame rendering
                     (pix_square_size, pix_square_size),
-                ),
+                    ),
             )
 
         # Draw grid lines
@@ -391,7 +421,7 @@ class GridWorldEnv(ParallelEnv):
                 self._get_agent_color(i),
                 ((y + 0.5) * pix_square_size, (x + 0.5) * pix_square_size), # swap coords for pygame rendering
                 pix_square_size / 3,
-            )
+                )
 
             # Draw agent ID
             font = pygame.font.SysFont(None, int(pix_square_size / 2))
@@ -422,7 +452,7 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing', 'base_station': True})
+    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing', 'base_station': True, 'fov': 2})
 
     # unit test -- default env
     obs, _ = env.reset()
