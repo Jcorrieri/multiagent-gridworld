@@ -1,18 +1,20 @@
-from environment.envs import gridworldv2, gridworld
 from ray.rllib.env import ParallelPettingZooEnv
 from ray.tune import register_env
 
+from environment.envs.gridworld import GridWorldEnv
+from environment.envs.gridworldv2 import GridWorldEnvV2
+
 
 def register_custom_envs(name: str):
-    register_env(name, lambda cfg: ParallelPettingZooEnv(gridworld.GridWorldEnv(cfg)))
-    register_env(name, lambda cfg: ParallelPettingZooEnv(gridworldv2.GridWorldEnv(cfg)))
+    register_env(name, lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
+    register_env(name, lambda cfg: ParallelPettingZooEnv(GridWorldEnvV2(cfg)))
 
 def make_env(env_config: dict):
-    name = env_config.get('env_name', 'gridworld')
+    name = env_config.get('env_name', 'default')
 
-    if name == "gridworld":
-        return gridworld.GridWorldEnv(env_config)
-    elif name == "gridworldv2":
-        return gridworldv2.GridWorldEnv(env_config)
+    if name == "default":
+        return GridWorldEnv(env_config)
+    elif name == "alt_reward":
+        return GridWorldEnvV2(env_config)
     # elif name == "baseline":
     #     pass
