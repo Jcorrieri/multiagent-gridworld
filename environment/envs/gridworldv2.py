@@ -1,6 +1,5 @@
 from enum import Enum
 import numpy as np
-
 from environment.envs.gridworld import GridWorldEnv
 
 
@@ -13,6 +12,12 @@ class Actions(Enum):
 
 
 class GridWorldEnvV2(GridWorldEnv):
+    metadata = {
+        "name": "alt_reward",
+        "render_modes": ["human", "rgb_array"],
+        "render_fps": 24
+    }
+
     def __init__(self, env_params, **kwargs):
         super().__init__(env_params, **kwargs)
 
@@ -51,7 +56,22 @@ class GridWorldEnvV2(GridWorldEnv):
                 rewards[agent] += getattr(self, 'disconnected')
 
 if __name__ == "__main__":
-    env = GridWorldEnvV2({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing', 'base_station': True})
+    reward_scheme = {
+        'new_tile_visited': 1.0,
+        'old_tile_maintainer': 0.5,
+        'old_tile_stagnant': -0.1,
+        'disconnected': -2.0,
+        'obstacle_penalty': -0.2,
+        'terminated': 100
+    }
+
+    env = GridWorldEnvV2({
+        'render_mode': "human",
+        'map_dir_path': '../obstacle-mats/testing',
+        'base_station': True,
+        'fov': 2,
+        'reward_scheme': reward_scheme
+    })
 
     # unit test -- default env
     obs, _ = env.reset()

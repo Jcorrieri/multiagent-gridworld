@@ -5,9 +5,9 @@ from environment.envs.gridworld import GridWorldEnv
 from environment.envs.gridworldv2 import GridWorldEnvV2
 
 
-def register_custom_envs(name: str):
-    register_env(name, lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
-    register_env(name, lambda cfg: ParallelPettingZooEnv(GridWorldEnvV2(cfg)))
+def register_custom_envs():
+    register_env("default", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
+    register_env("alt_reward", lambda cfg: ParallelPettingZooEnv(GridWorldEnvV2(cfg)))
 
 def make_env(env_config: dict):
     name = env_config.get('env_name', 'default')

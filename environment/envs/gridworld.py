@@ -9,7 +9,6 @@ import numpy as np
 import pygame
 from gymnasium import spaces
 from pettingzoo import ParallelEnv
-from pettingzoo.test import parallel_api_test
 from pettingzoo.utils.env import AgentID
 
 import utils
@@ -25,7 +24,7 @@ class Actions(Enum):
 
 class GridWorldEnv(ParallelEnv):
     metadata = {
-        "name": "gridworld",
+        "name": "default",
         "render_modes": ["human", "rgb_array"],
         "render_fps": 24
     }
@@ -462,7 +461,22 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    env = GridWorldEnv({'render_mode': "human", 'map_dir_path': './obstacle-mats/testing', 'base_station': True, 'fov': 2})
+    reward_scheme = {
+        'new_tile_visited_connected': 4.0,
+        'old_tile_visited_connected': -0.1,
+        'new_tile_visited_disconnected': -0.5,
+        'old_tile_visited_disconnected': -0.8,
+        'obstacle_penalty': -1.0,
+        'terminated': 200
+    }
+
+    env = GridWorldEnv({
+        'render_mode': "human",
+        'map_dir_path': '../obstacle-mats/testing',
+        'base_station': True,
+        'fov': 25,
+        'reward_scheme': reward_scheme
+    })
 
     # unit test -- default env
     obs, _ = env.reset()
