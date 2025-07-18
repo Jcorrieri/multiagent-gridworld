@@ -4,36 +4,36 @@ environment:
     fov: 25
     max_steps: 2000
     size: 25
-    num_agents: 6
+    num_agents: 10
     cr: 10
 
 reward_scheme:
-    new_tile_visited_connected: 2.0
+    new_tile_visited_connected: 4.0
     old_tile_visited_connected: -0.1
-    new_tile_visited_disconnected: -0.8
-    old_tile_visited_disconnected: -1.2
+    new_tile_visited_disconnected: -0.5
+    old_tile_visited_disconnected: -0.8
     obstacle: -1.0
-    terminated: 100
+    terminated: 200
 
 training:
-    module_file: cnn_2conv3linear_alt.py
-    num_episodes: 8000
-    target_reward: 2500
+    module_file: cnn_1conv3linear.py
+    num_episodes: 5000
+    target_reward: 1550
     gamma: 0.90
     lr: 0.0001
     grad_clip: 1.0
     train_batch_size: 8000
-    num_passes: 8
+    num_passes: 5
     minibatch_size: 800
-    l2_regularization: 0.0003
+    l2_regularization: 0.0001
     lambda_: 0.90
-    entropy_coeff: [[0, 0.15], [4000000, 0.02], [8000000, 0.001]]
-    clip_param: 0.2
+    #entropy_coeff: [[0, 0.1], [5000000, 0.001]]
+    #clip_param: 0.2
 
 testing:
     num_episodes_per_map: 1
     seed: 42
     explore: True
     render: True
-    model_path: default-env/v9
-    checkpoint: 4
+    model_path: default-env/v1
+    checkpoint: -1
