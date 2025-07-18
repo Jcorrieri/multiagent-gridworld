@@ -6,6 +6,8 @@ class ActorCriticCNNModel(nn.Module):
     def __init__(self, obs_space, num_outputs):
         super().__init__()
 
+        self.obs_space = obs_space
+
         h, w, c = obs_space.shape
 
         self.conv = nn.Sequential(
@@ -40,7 +42,7 @@ class ActorCriticCNNModel(nn.Module):
             obs = obs.permute(0, 3, 1, 2)
 
         x = self.conv(obs)
-        x = self.shared_fc(x)
+        x = self.linear(x)
 
         logits = self.actor_head(x)
         value = self.critic_head(x)

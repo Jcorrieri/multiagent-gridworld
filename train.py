@@ -118,7 +118,7 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
             os.rmdir(path)
         os.makedirs(path)
 
-    shutil.copy(f"config/default", f'{model_dir}/config')
+    shutil.copy(f"config/{args.config}", f'{model_dir}/config')
 
     return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
 
