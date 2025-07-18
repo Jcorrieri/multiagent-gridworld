@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 def parse_optimizer(parser):
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--config', type=str, default='default')
+    parser.add_argument('--config', type=str, default='alt')
 
 def plot_metrics(metrics: [[float, float]], path: str):
     mean_rewards = [m[0] for m in metrics]

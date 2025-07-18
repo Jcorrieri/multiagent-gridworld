@@ -51,10 +51,10 @@ class GridWorldEnv(ParallelEnv):
 
         # reward
         reward_scheme = env_params.get("reward_scheme", {})
-        self.new_tile_visited_connected = reward_scheme.get("new_tile_visited_connected", 2.0)
-        self.old_tile_visited_connected = reward_scheme.get("old_tile_visited_connected", -0.1)
-        self.new_tile_visited_disconnected = reward_scheme.get("new_tile_visited_disconnected", -4.0)
-        self.old_tile_visited_disconnected = reward_scheme.get("old_tile_visited_disconnected", -4.0)
+        self.new_tile_visited = reward_scheme.get("new_tile_visited", 2.0)
+        self.old_tile_maintainer = reward_scheme.get("old_tile_maintainer", 0.5)
+        self.old_tile_stagnant = reward_scheme.get("old_tile_stagnant", -0.1)
+        self.disconnected = reward_scheme.get("disconnected", -4.0)
         self.obstacle_penalty = reward_scheme.get("obstacle", -1.0)
         self.termination_bonus = reward_scheme.get("terminated", 480)
 
@@ -206,6 +206,7 @@ class GridWorldEnv(ParallelEnv):
 
         # Determine new positions
         new_positions = []
+        collisions = {agent: False for agent in self.agents}
         for i, agent in enumerate(self.agents):
             action = actions[agent]
             direction = self._action_to_direction[action]
@@ -220,6 +221,7 @@ class GridWorldEnv(ParallelEnv):
             else:
                 # If collision, don't move
                 new_positions.append(previous_locations[i])
+                collisions[agent] = True
 
         if self.base_station:
             new_positions.append((self.size - 1,0))
@@ -230,25 +232,38 @@ class GridWorldEnv(ParallelEnv):
         connected = nx.is_connected(G)
 
         # Calculate rewards
-        for i, agent in enumerate(self.agents):
-            current_pos = self.agent_locations[i]
-            previous_pos = previous_locations[i]
+        if connected:
+            explorers = []
+            maintainers = []
 
-            # Check if the agent moved
-            if not np.array_equal(current_pos, previous_pos):
-                if self.visited_tiles[current_pos[0], current_pos[1]] == 0 and connected:
-                    rewards[agent] += self.new_tile_visited_connected
-                elif self.visited_tiles[current_pos[0], current_pos[1]] == 0:
-                    rewards[agent] += self.new_tile_visited_disconnected
-                elif connected:
-                    rewards[agent] += self.old_tile_visited_connected
+            for i, agent in enumerate(self.agents):
+                current_pos = self.agent_locations[i]
+
+                if collisions[agent]:
+                    rewards[agent] += self.obstacle_penalty
+
+                if self.visited_tiles[current_pos[0], current_pos[1]] == 0:
+                    explorers.append(agent)
                 else:
-                    rewards[agent] += self.old_tile_visited_disconnected
+                    maintainers.append(agent)
 
                 self.visited_tiles[current_pos[0], current_pos[1]] = 1
+
+            exploration_reward = len(explorers) * self.new_tile_visited
+            for agent in explorers:
+                rewards[agent] += exploration_reward
+
+            if explorers:
+                maintenance_reward = len(explorers) * self.old_tile_maintainer
+                for agent in maintainers:
+                    rewards[agent] += maintenance_reward
             else:
-                # collision or no-op
-                rewards[agent] += self.obstacle_penalty
+                for agent in maintainers:
+                    rewards[agent] += self.old_tile_stagnant
+
+        else:
+            for agent in self.agents:
+                rewards[agent] += self.disconnected
 
         observations = {}
         infos = {}
