@@ -45,6 +45,7 @@ class GridWorldEnv(ParallelEnv):
 
         self.cr = env_params.get("cr", 10)
         self.fov_range = env_params.get("fov", 25)
+        self.use_local_fov = self.fov_range < 25
         self.max_steps = env_params.get("max_steps", 1000)
         self.max_coverage = 0
         self.timestep = 0
@@ -113,14 +114,13 @@ class GridWorldEnv(ParallelEnv):
                     self.adj_matrix[j][i] = 1
 
     def _generate_observation(self, agent_idx):
-        use_local_fov = self.fov_range < self.size
-
-        channels = 5 if use_local_fov else 4  # add visibility mask if using local fovs
+        # channels = 5 if use_local_fov else 4  # add visibility mask if using local fovs
+        channels = 4
 
         obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
 
         # Layer 0: Obstacle Map
-        if use_local_fov:
+        if self.use_local_fov:
             mask_bool = self.visibility_mask == 1
             mask_indices = np.argwhere(mask_bool)
 
@@ -147,9 +147,9 @@ class GridWorldEnv(ParallelEnv):
         obs[mask, 3] = 1.0
 
         # Layer 4 (Optional): Visibility Mask
-        if use_local_fov:
-            mask = self.visibility_mask == 1
-            obs[mask, 4] = 1.0
+        # if use_local_fov:
+        #     mask = self.visibility_mask == 1
+        #     obs[mask, 4] = 1.0
 
         return obs
 
@@ -195,12 +195,15 @@ class GridWorldEnv(ParallelEnv):
         map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')  # TODO -- replace w real map indices
         self.obs_mat = np.loadtxt(map_path, delimiter=' ', dtype='int')
 
-        self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
+        # self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
 
-        self.max_coverage = self.size**2
+        self.max_coverage = self.size**2 - len(self.obs_mat)
 
         self._generate_spawns()
         self._build_adj_matrix()
+
+        if self.use_local_fov:
+            self._generate_local_obs()
 
         observations = {}
         infos = {}
@@ -277,7 +280,7 @@ class GridWorldEnv(ParallelEnv):
                 # collision or no-op
                 rewards[agent] += self.obstacle_penalty
 
-        if self.fov_range < 25:
+        if self.use_local_fov:
             self._generate_local_obs()
 
         observations = {}
@@ -339,18 +342,16 @@ class GridWorldEnv(ParallelEnv):
         pix_square_size = self.window_size / self.size
 
         # Draw visited cells
-        for i in range(self.size):
-            for j in range(self.size):
-                if self.visited_tiles[i, j] > 0:
-                    # Light blue for visited cells
-                    pygame.draw.rect(
-                        canvas,
-                        (185, 235, 245),
-                        pygame.Rect(
-                            pix_square_size * np.array([j, i]), # flip coords for pygame rendering
-                            (pix_square_size, pix_square_size),
-                            ),
-                    )
+        visited_indices = np.argwhere(self.visited_tiles > 0)
+        for idx in visited_indices:
+            pygame.draw.rect(
+                canvas,
+                (185, 235, 245),
+                pygame.Rect(
+                    pix_square_size * np.flip(idx), # flip coords for pygame rendering
+                    (pix_square_size, pix_square_size),
+                    ),
+            )
 
         for obstacle in self.obs_mat:
             pygame.draw.rect(
@@ -361,6 +362,18 @@ class GridWorldEnv(ParallelEnv):
                     (pix_square_size, pix_square_size),
                     ),
             )
+
+        if self.use_local_fov: # fog of war
+            indices = np.argwhere(self.visibility_mask == 0)
+            for idx in indices:
+                pygame.draw.rect(
+                    canvas,
+                    (192, 192, 192, 0.65),
+                    pygame.Rect(
+                        pix_square_size * np.flip(idx), # flip coords for pygame rendering
+                        (pix_square_size, pix_square_size),
+                        ),
+                )
 
         # Draw grid lines
         for x in range(self.size + 1):
