@@ -7,14 +7,17 @@ import numpy as np
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
+from pettingzoo import ParallelEnv
 
-from env.grid_world import GridWorldEnv
+from environment.env_factory import make_env
 from models.rl_wrapper import CustomTorchModelV2
 from utils import plot_metrics
 
 
 def build_config(env_config: dict, training_config: dict):
-    dummy_env = GridWorldEnv(env_config)
+    dummy_env = make_env(env_config)
+
+    print(dummy_env)
 
     # PPO training parameters
     ppo_params = dict(
@@ -41,7 +44,7 @@ def build_config(env_config: dict, training_config: dict):
     # config.log_level = "DEBUG"
     return config.build_algo()
 
-def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dummy_env: GridWorldEnv) -> PPOConfig:
+def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dummy_env: ParallelEnv) -> PPOConfig:
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
 
     config = (
@@ -93,7 +96,7 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
     return config
 
 def create_model_directories(env_config: dict, args: argparse.Namespace):
-    if env_config['env_name'] == "gridworld":
+    if env_config['env_name'] == "gridworld" or env_config['env_name'] == 'gridworldv2':
         if env_config['base_station']:
             experiment_dir = 'experiments/base-station'
         else:

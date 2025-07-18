@@ -5,7 +5,7 @@ from ray.rllib.algorithms import Algorithm
 from ray.rllib.env import ParallelPettingZooEnv
 from ray.rllib.models import ModelCatalog
 
-from env.grid_world import GridWorldEnv
+from environment.env_factory import make_env
 from models.rl_wrapper import CustomTorchModelV2
 
 
@@ -63,7 +63,7 @@ def test(env_config, test_config) -> None:
 
     if num_episodes > 0:
         print(f"Running {num_episodes} test episodes (10 * {num_episodes})")
-        game_env = ParallelPettingZooEnv(GridWorldEnv(env_config))
+        game_env = ParallelPettingZooEnv(make_env(env_config))
 
         epis_connected, total_reward, total_steps, total_breaks, total_coverage = 0, 0, 0, 0, 0
         for i in range(num_episodes):

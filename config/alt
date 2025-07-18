@@ -1,5 +1,5 @@
 environment:
-    env_name: gridworld
+    env_name: gridworldv2
     base_station: False
     fov: 25
     max_steps: 2000

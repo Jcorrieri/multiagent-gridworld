@@ -3,10 +3,8 @@ import warnings
 
 import torch
 import yaml
-from ray.rllib.env import ParallelPettingZooEnv
-from ray.tune import register_env
 
-from env.grid_world import GridWorldEnv
+from environment.env_factory import register_custom_envs
 from test import test
 from train import train
 from utils import parse_optimizer
@@ -27,13 +25,12 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(config['testing'].get("seed", 42))
 
-    # for rllib
-    register_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
-
     if args.test:
-        map_dir_path = "./env/obstacle-mats/testing"
+        map_dir_path = "environment/obstacle-mats/testing"
     else:
-        map_dir_path = "./env/obstacle-mats/training"
+        map_dir_path = "environment/obstacle-mats/training"
+
+    register_custom_envs(config['environment'].get('env_name', "gridworld"))
 
     env_config = dict(
         map_dir_path=map_dir_path,
