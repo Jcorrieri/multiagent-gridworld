@@ -50,14 +50,9 @@ class GridWorldEnv(ParallelEnv):
         self.max_coverage = 0
         self.timestep = 0
 
-        # reward
         reward_scheme = env_params.get("reward_scheme", {})
-        self.new_tile_visited_connected = reward_scheme.get("new_tile_visited_connected", 2.0)
-        self.old_tile_visited_connected = reward_scheme.get("old_tile_visited_connected", -0.1)
-        self.new_tile_visited_disconnected = reward_scheme.get("new_tile_visited_disconnected", -4.0)
-        self.old_tile_visited_disconnected = reward_scheme.get("old_tile_visited_disconnected", -4.0)
-        self.obstacle_penalty = reward_scheme.get("obstacle", -1.0)
-        self.termination_bonus = reward_scheme.get("terminated", 480)
+        for key in reward_scheme.keys():
+            setattr(self, key, reward_scheme[key])
 
         self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
         self.visibility_mask = np.zeros((self.size, self.size), dtype=int)
@@ -178,6 +173,24 @@ class GridWorldEnv(ParallelEnv):
         self.agent_locations[:self._num_agents - station_offset, 1] = np.arange(station_offset, self._num_agents)
         self.visited_tiles[self.size - 1, :self._num_agents] = 1
 
+    def _calc_rewards(self, rewards: dict[str: float], connected: bool, collisions: [bool]):
+        for i, agent in enumerate(self.agents):
+            current_pos = self.agent_locations[i]
+
+            if self.visited_tiles[current_pos[0], current_pos[1]] == 0 and connected:
+                rewards[agent] += getattr(self, 'new_tile_visited_connected')
+            elif self.visited_tiles[current_pos[0], current_pos[1]] == 0:
+                rewards[agent] += getattr(self, 'new_tile_visited_disconnected')
+            elif connected:
+                rewards[agent] += getattr(self, 'old_tile_visited_connected')
+            else:
+                rewards[agent] += getattr(self, 'old_tile_visited_disconnected')
+
+            self.visited_tiles[current_pos[0], current_pos[1]] = 1
+
+            if collisions[agent]:
+                rewards[agent] += getattr(self, 'obstacle_penalty')
+
     def reset(self, seed=None, options=None):
         if seed is not None:
             self.rng = np.random.default_rng(seed)
@@ -236,6 +249,7 @@ class GridWorldEnv(ParallelEnv):
 
         # Determine new positions
         new_positions = []
+        collisions = {agent: False for agent in self.agents}
         for i, agent in enumerate(self.agents):
             action = actions[agent]
             direction = self._action_to_direction[action]
@@ -250,6 +264,7 @@ class GridWorldEnv(ParallelEnv):
             else:
                 # If collision, don't move
                 new_positions.append(previous_locations[i])
+                collisions[agent] = True
 
         if self.base_station:
             new_positions.append((self.size - 1,0))
@@ -260,25 +275,7 @@ class GridWorldEnv(ParallelEnv):
         connected = nx.is_connected(G)
 
         # Calculate rewards
-        for i, agent in enumerate(self.agents):
-            current_pos = self.agent_locations[i]
-            previous_pos = previous_locations[i]
-
-            # Check if the agent moved
-            if not np.array_equal(current_pos, previous_pos):
-                if self.visited_tiles[current_pos[0], current_pos[1]] == 0 and connected:
-                    rewards[agent] += self.new_tile_visited_connected
-                elif self.visited_tiles[current_pos[0], current_pos[1]] == 0:
-                    rewards[agent] += self.new_tile_visited_disconnected
-                elif connected:
-                    rewards[agent] += self.old_tile_visited_connected
-                else:
-                    rewards[agent] += self.old_tile_visited_disconnected
-
-                self.visited_tiles[current_pos[0], current_pos[1]] = 1
-            else:
-                # collision or no-op
-                rewards[agent] += self.obstacle_penalty
+        self._calc_rewards(rewards, connected, collisions)
 
         if self.use_local_fov:
             self._generate_local_obs()

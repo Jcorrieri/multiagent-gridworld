@@ -17,8 +17,6 @@ from utils import plot_metrics
 def build_config(env_config: dict, training_config: dict):
     dummy_env = make_env(env_config)
 
-    print(dummy_env)
-
     # PPO training parameters
     ppo_params = dict(
         gamma=training_config.get("gamma", 0.9),
@@ -96,13 +94,15 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
     return config
 
 def create_model_directories(env_config: dict, args: argparse.Namespace):
-    if env_config['env_name'] == "gridworld" or env_config['env_name'] == 'gridworldv2':
+    default_env_names = ["default", "alt_reward"]
+
+    if env_config['env_name'] in default_env_names:
         if env_config['base_station']:
-            experiment_dir = 'experiments/base-station'
+            experiment_dir = 'experiments\\base-station'
         else:
-            experiment_dir = 'experiments/default-env'
+            experiment_dir = 'experiments\\default-env'
     else:
-        experiment_dir = 'experiments/baseline'
+        experiment_dir = 'experiments\\baseline'
 
     model_dir = os.path.join(experiment_dir, 'v0')
     i = 1
@@ -121,7 +121,7 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
             os.rmdir(path)
         os.makedirs(path)
 
-    shutil.copy(f"config/{args.config}", f'{model_dir}/config')
+    shutil.copy(f"config\\{args.config}", f'{model_dir}\\config')
 
     return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
 
@@ -130,11 +130,14 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*50)
     print(f"Using device: {args.device}")
     print(f"Module: {training_config['module_file']}")
+    print(f"Environment: {env_config['env_name']}")
+
+    ckpt_dir, save_dir, train_metrics_dir, test_result_dir = create_model_directories(env_config, args)
+
+    print(f"Model Path: {save_dir}")
     print("-"*50)
 
     print("\nBuilding Ray Trainer...\n")
-
-    ckpt_dir, save_dir, train_metrics_dir, test_result_dir = create_model_directories(env_config, args)
 
     trainer = build_config(env_config, training_config)
 
