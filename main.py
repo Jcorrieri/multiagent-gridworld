@@ -30,7 +30,7 @@ def main():
     else:
         map_dir_path = "environment/obstacle-mats/training"
 
-    register_custom_envs(config['environment'].get('env_name', "gridworld"))
+    register_custom_envs()
 
     env_config = dict(
         map_dir_path=map_dir_path,

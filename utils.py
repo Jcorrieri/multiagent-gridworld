@@ -29,7 +29,7 @@ def plot_metrics(metrics: [[float, float]], path: str):
 
     plt.tight_layout()
     plt.savefig(os.path.join(path, "metrics_plot.png"))
-    print(f"Saved training plot to {path}/metrics_plot.png")
+    print(f"Saved training plot to {path}\\metrics_plot.png")
 
 def generate_obstacles(grid_size=25, obstacle_density=0.10, max_attempts=100, seed=None):
     if seed is not None:

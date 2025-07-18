@@ -24,14 +24,17 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │   └── ...
 │
 ├── env/
+│   ├── envs/                              
+│   │   ├── gridworld.py
+│   │   └── ...
 │   ├── obstacle_mats/                              # Custom obstacle maps (origin at top-left)
-│   │   └── testing/
-│   │       ├── mat1
-│   │       └── ...
+│   │   ├── testing/
+│   │   │   ├── mat0
+│   │   │   └── ...
 │   │   └── training/
-│   │       ├── mat1
+│   │       ├── mat0
 │   │       └── ...
-│   └── grid_world.py                               # Gymnasium environment
+│   └── env_factory.py                              
 │
 ├── experiments/                                    # Training and testing files split by scenario
 │   ├── base-station/                               
@@ -64,8 +67,8 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │
 ├── main.py                                         # Main entry point for training and testing
 ├── test.py                                         
-├── train.py                                         
-├── utils.py                                        # Utilities: metrics saving, map generation, argument processing
+├── train.py
+└── utils.py                                        # Utilities: metrics saving, map generation, argument processing
 ```
 
 ## Usage:
