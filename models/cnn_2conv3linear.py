@@ -25,22 +25,27 @@ class ActorCriticCNNModel(nn.Module):
             out = self.conv(dummy)
             flattened_size = out.flatten(1).size(1)
 
-        self.linear = nn.Sequential(
-            nn.Linear(flattened_size, 256),
+        self.actor_head = nn.Sequential(
+            nn.Linear(flattened_size, 512),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(512, 256),
             nn.ReLU(),
+            nn.Linear(256, num_outputs)
         )
 
-        self.actor_head = nn.Linear(256, num_outputs)
-        self.critic_head = nn.Linear(256, 1)
+        self.critic_head = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 1)
+        )
 
     def forward(self, obs):
         if obs.ndim == 4 and obs.shape[1] != self.obs_space.shape[-1]:  # PettingZoo obs are [B, H, W, C]
             obs = obs.permute(0, 3, 1, 2)  # Torch expects [B, C, H, W]
 
         x = self.conv(obs)
-        x = self.linear(x)
 
         logits = self.actor_head(x)
         value = self.critic_head(x)

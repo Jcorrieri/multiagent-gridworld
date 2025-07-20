@@ -67,15 +67,10 @@ def generate_obstacles(grid_size=25, obstacle_density=0.10, max_attempts=100, se
         grid = np.zeros((grid_size, grid_size), dtype=np.int8)
         obstacles_placed = 0
         while obstacles_placed < max_obstacles:
-            shape_type = random.choice(["point", "rect", "line"])
+            shape_type = random.choice(["rect", "line"])
             r, c = random.randint(0, grid_size - 2), random.randint(0, grid_size - 1)
 
-            if shape_type == "point":
-                if grid[r, c] == 0:
-                    grid[r, c] = 1
-                    obstacles_placed += 1
-
-            elif shape_type == "rect":
+            if shape_type == "rect":
                 h, w = random.randint(1, 3), random.randint(1, 3)
                 r2, c2 = min(r + h, grid_size), min(c + w, grid_size)
                 subgrid = grid[r:r2, c:c2]
@@ -117,10 +112,25 @@ def save_obstacle_map(grid, filename):
                 if grid[r, c] == 1:
                     f.write(f"{r} {c}\n")
 
-def gen_train_test_split(obstacle_density=0.10):
-    for i in range(1, 50):
-        grid = generate_obstacles(obstacle_density=obstacle_density)
-        save_obstacle_map(grid, f'env/obstacle-mats/training/mat{i}')
-    for i in range(1, 50):
-        grid = generate_obstacles(obstacle_density=obstacle_density)
-        save_obstacle_map(grid, f'env/obstacle-mats/testing/mat{i}')
+def gen_train_test_split(test_density=0.10):
+    total_mats = 50
+
+    num_easy = total_mats * 0.2
+    num_mid = total_mats * 0.5
+    # num_hard = total_mats * 0.3
+
+    for i in range(1, total_mats):
+        if i < num_easy:
+            grid = generate_obstacles(obstacle_density=0.05)
+        elif i < num_mid:
+            grid = generate_obstacles(obstacle_density=0.10)
+        else:
+            grid = generate_obstacles(obstacle_density=0.15)
+        save_obstacle_map(grid, f'environment/obstacle-mats/training/mat{i}')
+
+    for i in range(1, total_mats):
+        grid = generate_obstacles(obstacle_density=test_density)
+        save_obstacle_map(grid, f'environment/obstacle-mats/testing/mat{i}')
+
+if __name__ == "__main__":
+    gen_train_test_split(0.12)

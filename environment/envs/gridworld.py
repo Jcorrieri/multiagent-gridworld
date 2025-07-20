@@ -24,7 +24,7 @@ class Actions(Enum):
 
 class GridWorldEnv(ParallelEnv):
     metadata = {
-        "name": "default",
+        "name": "gridworld",
         "render_modes": ["human", "rgb_array"],
         "render_fps": 24
     }
@@ -204,7 +204,7 @@ class GridWorldEnv(ParallelEnv):
             self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
 
         mat_idx = self.map_indices.pop()
-        map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')  # TODO -- replace w real map indices
+        map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')
         self.obs_mat = np.loadtxt(map_path, delimiter=' ', dtype='int')
 
         # self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited

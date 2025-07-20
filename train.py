@@ -141,10 +141,6 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
 
     trainer = build_config(env_config, training_config)
 
-    policy_id = "shared_policy"
-    model = trainer.get_policy(policy_id).model
-
-    print("-"*100 + "\nModel Architecture: ", model)
     print("-"*100 + "\n\nBeginning Training...\n")
 
     max_rew_epi_count = 0

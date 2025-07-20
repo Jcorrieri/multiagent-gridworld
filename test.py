@@ -59,7 +59,7 @@ def test(env_config, test_config) -> None:
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
     tester = Algorithm.from_checkpoint(checkpoint_dir)
 
-    num_episodes = 5 * test_config.get("num_episodes_per_map", 10)
+    num_episodes = 50 * test_config.get("num_episodes_per_map", 10)
 
     if num_episodes > 0:
         print(f"Running {num_episodes} test episodes (10 * {num_episodes})")
