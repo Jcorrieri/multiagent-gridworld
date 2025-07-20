@@ -12,33 +12,27 @@ class Actions(Enum):
 
 
 class GridWorldEnvV2(GridWorldEnv):
-    metadata = {
-        "name": "alt_reward",
-        "render_modes": ["human", "rgb_array"],
-        "render_fps": 24
-    }
-
     def __init__(self, env_params, **kwargs):
         super().__init__(env_params, **kwargs)
 
     def _calc_rewards(self, rewards: dict[str: float], connected: bool, collisions: [bool]):
+        explorers = []
+        maintainers = []
+
+        for i, agent in enumerate(self.agents):
+            current_pos = self.agent_locations[i]
+
+            if collisions[agent]:
+                rewards[agent] += getattr(self, 'obstacle_penalty')
+
+            if self.visited_tiles[current_pos[0], current_pos[1]] == 0:
+                explorers.append(agent)
+            else:
+                maintainers.append(agent)
+
+            self.visited_tiles[current_pos[0], current_pos[1]] = 1
+
         if connected:
-            explorers = []
-            maintainers = []
-
-            for i, agent in enumerate(self.agents):
-                current_pos = self.agent_locations[i]
-
-                if collisions[agent]:
-                    rewards[agent] += getattr(self, 'obstacle_penalty')
-
-                if self.visited_tiles[current_pos[0], current_pos[1]] == 0:
-                    explorers.append(agent)
-                else:
-                    maintainers.append(agent)
-
-                self.visited_tiles[current_pos[0], current_pos[1]] = 1
-
             exploration_reward = len(explorers) * getattr(self, 'new_tile_visited')
             for agent in explorers:
                 rewards[agent] += exploration_reward
@@ -46,6 +40,7 @@ class GridWorldEnvV2(GridWorldEnv):
             if explorers:
                 maintenance_reward = len(explorers) * getattr(self, 'old_tile_maintainer')
                 for agent in maintainers:
+
                     rewards[agent] += maintenance_reward
             else:
                 for agent in maintainers:
@@ -69,7 +64,7 @@ if __name__ == "__main__":
         'render_mode': "human",
         'map_dir_path': '../obstacle-mats/testing',
         'base_station': True,
-        'fov': 2,
+        'fov': 3,
         'reward_scheme': reward_scheme
     })
 

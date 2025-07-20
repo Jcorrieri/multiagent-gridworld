@@ -13,7 +13,7 @@ reward_scheme:
     new_tile_visited_disconnected: -0.5
     old_tile_visited_disconnected: -0.8
     obstacle_penalty: -1.0
-    terminated: 200
+    termination_bonus: 200
 
 training:
     module_file: cnn_1conv3linear.py
