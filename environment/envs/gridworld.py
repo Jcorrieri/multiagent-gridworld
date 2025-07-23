@@ -161,18 +161,10 @@ class GridWorldEnv(ParallelEnv):
 
             self.visibility_mask[locations[:, 0], locations[:, 1]] = 1
 
-    def _generate_spawns(self):
-        if self.base_station:
-            station_offset = 1
-            self.agent_locations[self._num_agents - 1][1] = 0
-        else:
-            station_offset = 0
+    def _calc_rewards(self, rewards, step_info):
+        connected = step_info["connected"]
+        collisions = step_info["collisions"]
 
-        self.agent_locations[:, 0] = self.size - 1
-        self.agent_locations[:self._num_agents - station_offset, 1] = np.arange(station_offset, self._num_agents)
-        self.visited_tiles[self.size - 1, :self._num_agents] = 1
-
-    def _calc_rewards(self, rewards: dict[str: float], connected: bool, collisions: [bool]):
         for i, agent in enumerate(self.agents):
             current_pos = self.agent_locations[i]
 
@@ -189,6 +181,17 @@ class GridWorldEnv(ParallelEnv):
 
             if collisions[agent]:
                 rewards[agent] += getattr(self, 'obstacle_penalty')
+
+    def _generate_spawns(self):
+        if self.base_station:
+            station_offset = 1
+            self.agent_locations[self._num_agents - 1][1] = 0
+        else:
+            station_offset = 0
+
+        self.agent_locations[:, 0] = self.size - 1
+        self.agent_locations[:self._num_agents - station_offset, 1] = np.arange(station_offset, self._num_agents)
+        self.visited_tiles[self.size - 1, :self._num_agents] = 1
 
     def reset(self, seed=None, options=None):
         if seed is not None:
@@ -273,8 +276,18 @@ class GridWorldEnv(ParallelEnv):
         G = nx.from_numpy_array(self.adj_matrix)
         connected = nx.is_connected(G)
 
+        coverage = np.sum(self.visited_tiles > 0) / self.max_coverage
+
+        step_info = {
+            "coverage": coverage * 100,
+            "timestep": self.timestep,
+            "connected": connected,
+            "collisions": collisions,
+            "graph": G,
+        }
+
         # Calculate rewards
-        self._calc_rewards(rewards, connected, collisions)
+        self._calc_rewards(rewards, step_info)
 
         if self.use_local_fov:
             self._generate_local_obs()
@@ -284,9 +297,9 @@ class GridWorldEnv(ParallelEnv):
         for i, agent in enumerate(self.agents):
             observations[agent] = self._generate_observation(i)
             infos[agent] = {
-                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage * 100,
-                "step": self.timestep,
-                "connection_broken": not connected,
+                "coverage": step_info['coverage'],
+                "step": step_info['timestep'],
+                "connection_broken": not step_info['connected'],
             }
 
         all_visited = np.sum(self.visited_tiles > 0) == self.max_coverage

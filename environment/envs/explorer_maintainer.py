@@ -1,28 +1,19 @@
-from enum import Enum
 import numpy as np
 from environment.envs.gridworld import GridWorldEnv
 
 
-class Actions(Enum):
-    right = 0
-    up = 1
-    left = 2
-    down = 3
-    no_op = 4
-
-
-class GridWorldEnvV2(GridWorldEnv):
+class ExplorerMaintainerEnv(GridWorldEnv):
     def __init__(self, env_params, **kwargs):
         super().__init__(env_params, **kwargs)
 
-    def _calc_rewards(self, rewards: dict[str: float], connected: bool, collisions: [bool]):
+    def _calc_rewards(self, rewards: dict[str: float], step_info):
         explorers = []
         maintainers = []
 
         for i, agent in enumerate(self.agents):
             current_pos = self.agent_locations[i]
 
-            if collisions[agent]:
+            if step_info['collisions'][agent]:
                 rewards[agent] += getattr(self, 'obstacle_penalty')
 
             if self.visited_tiles[current_pos[0], current_pos[1]] == 0:
@@ -32,19 +23,17 @@ class GridWorldEnvV2(GridWorldEnv):
 
             self.visited_tiles[current_pos[0], current_pos[1]] = 1
 
-        if connected:
-            exploration_reward = len(explorers) * getattr(self, 'new_tile_visited')
+        if step_info['connected']:
+            explorer_reward = getattr(self, 'explorer') + (step_info['coverage'] / 100)
             for agent in explorers:
-                rewards[agent] += exploration_reward
+                rewards[agent] += explorer_reward
 
             if explorers:
-                maintenance_reward = len(explorers) * getattr(self, 'old_tile_maintainer')
                 for agent in maintainers:
-
-                    rewards[agent] += maintenance_reward
+                    rewards[agent] += getattr(self, 'maintainer_percentage') * explorer_reward
             else:
                 for agent in maintainers:
-                    rewards[agent] += getattr(self, 'old_tile_stagnant')
+                    rewards[agent] += getattr(self, 'stagnation_penalty')
 
         else:
             for agent in self.agents:
@@ -52,15 +41,15 @@ class GridWorldEnvV2(GridWorldEnv):
 
 if __name__ == "__main__":
     reward_scheme = {
-        'new_tile_visited': 1.0,
-        'old_tile_maintainer': 0.5,
-        'old_tile_stagnant': -0.1,
-        'disconnected': -2.0,
-        'obstacle_penalty': -0.2,
+        'explorer': 1.0,
+        'maintainer_percentage': 0.5,
+        'stagnation_penalty': -0.1,
+        'disconnected': -0.1,
+        'obstacle_penalty': 0.0,
         'terminated': 100
     }
 
-    env = GridWorldEnvV2({
+    env = ExplorerMaintainerEnv({
         'render_mode': "human",
         'map_dir_path': '../obstacle-mats/testing',
         'base_station': True,

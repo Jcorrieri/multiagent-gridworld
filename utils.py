@@ -115,17 +115,8 @@ def save_obstacle_map(grid, filename):
 def gen_train_test_split(test_density=0.10):
     total_mats = 50
 
-    num_easy = total_mats * 0.2
-    num_mid = total_mats * 0.5
-    # num_hard = total_mats * 0.3
-
     for i in range(1, total_mats):
-        if i < num_easy:
-            grid = generate_obstacles(obstacle_density=0.05)
-        elif i < num_mid:
-            grid = generate_obstacles(obstacle_density=0.10)
-        else:
-            grid = generate_obstacles(obstacle_density=0.15)
+        grid = generate_obstacles(obstacle_density=0.10)
         save_obstacle_map(grid, f'environment/obstacle-mats/training/mat{i}')
 
     for i in range(1, total_mats):
@@ -133,4 +124,4 @@ def gen_train_test_split(test_density=0.10):
         save_obstacle_map(grid, f'environment/obstacle-mats/testing/mat{i}')
 
 if __name__ == "__main__":
-    gen_train_test_split(0.12)
+    gen_train_test_split(0.10)

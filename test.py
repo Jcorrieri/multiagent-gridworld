@@ -62,7 +62,7 @@ def test(env_config, test_config) -> None:
     num_episodes = 50 * test_config.get("num_episodes_per_map", 10)
 
     if num_episodes > 0:
-        print(f"Running {num_episodes} test episodes (10 * {num_episodes})")
+        print(f"Running {num_episodes} test episodes")
         game_env = ParallelPettingZooEnv(make_env(env_config))
 
         epis_connected, total_reward, total_steps, total_breaks, total_coverage = 0, 0, 0, 0, 0
