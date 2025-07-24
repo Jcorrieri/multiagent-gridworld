@@ -1,14 +1,36 @@
 import os.path
-
 import numpy as np
 import random
 from collections import deque
 import matplotlib.pyplot as plt
+from ray.rllib.env import ParallelPettingZooEnv
+from ray.tune import register_env as register_ray_env
 
+from environment.envs.gridworld import GridWorldEnv
+from environment.rewards import *
 
 def parse_optimizer(parser):
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--config', type=str, default='default')
+
+def register_envs():
+    register_ray_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
+
+def make_reward_scheme(module, params) -> RewardScheme:
+    if module == "explorer_maintainer":
+        return ExplorerMaintainer(params)
+    elif module == "components":
+        return Components(params)
+    else:
+        return Default(params)
+
+def make_env(env_config: dict):
+    name = env_config.get('env_name', 'default')
+
+    if name == "baseline":
+        pass
+    else:
+        return GridWorldEnv(env_config)
 
 def plot_metrics(metrics: [[float, float]], path: str):
     mean_rewards = [m[0] for m in metrics]
