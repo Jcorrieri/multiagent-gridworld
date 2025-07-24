@@ -5,7 +5,7 @@ from ray.rllib.algorithms import Algorithm
 from ray.rllib.env import ParallelPettingZooEnv
 from ray.rllib.models import ModelCatalog
 
-from environment.env_factory import make_env
+from utils import make_env
 from models.rl_wrapper import CustomTorchModelV2
 
 
@@ -53,7 +53,8 @@ def test(env_config, test_config) -> None:
     print("Testing Parameters:")
     print("-"*50)
     print(f"Seed: {env_config['seed']}")
-    print(f"Model: {model}")
+    print(f"Environment: {env_config['env_name']}")
+    print(f"Reward Scheme: {env_config['reward_scheme']}")
     print("-"*50)
 
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)

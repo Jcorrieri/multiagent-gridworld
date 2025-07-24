@@ -1,13 +1,11 @@
 import argparse
 import warnings
-
 import torch
 import yaml
 
-from environment.env_factory import register_custom_envs
 from test import test
 from train import train
-from utils import parse_optimizer
+from utils import parse_optimizer, register_envs, make_reward_scheme
 
 
 def main():
@@ -30,12 +28,16 @@ def main():
     else:
         map_dir_path = "environment/obstacle-mats/training"
 
-    register_custom_envs()
+    reward_scheme_module = config['rewards']['module']
+    reward_scheme_params = config['rewards']['params']
+    reward_scheme = make_reward_scheme(reward_scheme_module, reward_scheme_params)
+
+    register_envs()
 
     env_config = dict(
         map_dir_path=map_dir_path,
         render_mode="rgb_array",
-        reward_scheme=config['reward_scheme'],
+        reward_scheme=reward_scheme,
         **config['environment']
     )
 

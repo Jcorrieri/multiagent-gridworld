@@ -8,13 +8,12 @@ environment:
     cr: 10
 
 rewards:
-    module: explorer_maintainer
+    module: components
     params:
-        explorer: 1.0
-        maintainer_percentage: 0.5
-        stagnation_penalty: -0.1
-        obstacle_penalty: 0.0
-        disconnected: -1.0
+        new_tile: 0.5
+        total_coverage_bonus: 0.5
+        total_teammate_bonus: 1.0
+        missing_teammate_penalty: -0.8
         termination_bonus: 100
 
 training:

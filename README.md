@@ -27,7 +27,7 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │   ├── envs/                              
 │   │   ├── gridworld.py
 │   │   └── ...
-│   ├── obstacle_mats/                              # Custom obstacle maps (origin at top-left)
+│   ├── obstacle_mats/                              # custom obstacle maps (origin at top-left)
 │   │   ├── testing/
 │   │   │   ├── mat0
 │   │   │   └── ...
@@ -36,20 +36,20 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │   │       └── ...
 │   └── env_factory.py                              
 │
-├── experiments/                                    # Training and testing files split by scenario
+├── experiments/                                    # training and testing files split by scenario
 │   ├── base-station/                               
 │   │   └── v0/                                     
-│   │       ├── ckpt/                               # Model checkpoint(s) during training
-│   │       │   ├── 0/                              # Checkpoint 0, 1, ..., n
+│   │       ├── ckpt/                               # model checkpoint(s) during training
+│   │       │   ├── 0/                              # checkpoint 0, 1, ..., n
 │   │       │   │   └── <rllib_algorithm_files>
 │   │       │   └── ...
-│   │       ├── saved/                              # The final model after training is finished
+│   │       ├── saved/                              # the final model after training is finished
 │   │       │   └── <rllib_algorithm_files>
 │   │       ├── test-results/               
 │   │       │   └── results.csv
 │   │       ├── train-metrics/
 │   │       │   └── metrics_plot.png
-│   │       └── config.txt                          # Copy of config/<config.txt> used for training
+│   │       └── config.txt                          # copy of config/<config.txt> used for training
 │   ├── baseline/
 │   │   ├── v0/  
 │   │   │   └── ...
@@ -59,16 +59,16 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │       │   └── ...
 │       └── ...
 │
-├── models/                                         # Neural network architectures
+├── models/                                         # neural network architectures
 │   ├── cnn_1conv2linear.py
 │   ├── cnn_1conv3linear.py
 │   ├── cnn_2conv3linear.py                        
-│   └── rl_wrapper.py                               # Wrapper for Ray RLlib
+│   └── rl_wrapper.py                               # wrapper for Ray RLlib
 │
-├── main.py                                         # Main entry point for training and testing
+├── main.py                                         # main entry point for training and testing
 ├── test.py                                         
 ├── train.py
-└── utils.py                                        # Utilities: metrics saving, map generation, argument processing
+└── utils.py                                        # handles arguments, environments, and metrics
 ```
 
 ## Usage:
@@ -96,7 +96,7 @@ reward_scheme:
 training:
   module_file: cnn_1conv2linear.py                  # PyTorch network architecture
   num_episodes: 5000
-  target_reward: 1550                               # For early stoppage
+  target_reward: 1550                               # for early stoppage
   gamma: 0.95
   lr: 0.0003
   grad_clip: 1.0
