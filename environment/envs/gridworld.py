@@ -123,6 +123,7 @@ class GridWorldEnv(ParallelEnv):
             intersect = coords_set & mask_set
             for r, c in intersect:
                 obs[r, c, 0] = 1.0
+                self.visited_tiles[r, c] = 1.0
         else:
             obs[self.obs_mat[:, 0], self.obs_mat[:, 1], 0] = 1.0
 
@@ -138,11 +139,6 @@ class GridWorldEnv(ParallelEnv):
         # Layer 3: Coverage Map
         mask = self.visited_tiles == 1
         obs[mask, 3] = 1.0
-
-        # Layer 4 (Optional): Visibility Mask
-        # if use_local_fov:
-        #     mask = self.visibility_mask == 1
-        #     obs[mask, 4] = 1.0
 
         return obs
 
@@ -190,13 +186,15 @@ class GridWorldEnv(ParallelEnv):
 
         # self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
 
-        self.max_coverage = self.size**2 - len(self.obs_mat)
+        self.max_coverage = self.size**2
 
         self._generate_spawns()
         self._build_adj_matrix()
 
         if self.use_local_fov:
             self._generate_local_obs()
+        else:
+            self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0
 
         observations = {}
         infos = {}
@@ -286,7 +284,7 @@ class GridWorldEnv(ParallelEnv):
         all_visited = np.sum(self.visited_tiles > 0) == self.max_coverage
         if all_visited:
             for agent in self.agents:
-                rewards[agent] += self.termination_bonus
+                rewards[agent] += self.reward_scheme.get_terminated()
             terminated = {agent: True for agent in self.agents}
             self.agents = []
 
