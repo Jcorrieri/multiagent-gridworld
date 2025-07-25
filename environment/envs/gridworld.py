@@ -97,12 +97,12 @@ class GridWorldEnv(ParallelEnv):
         """Return action space for a specific agent"""
         return spaces.Discrete(5)  # 5 actions: right, up, left, down, no-op
 
-    def _build_adj_matrix(self):
+    def _build_adj_matrix(self, locations):
         """Build adjacency matrix based on communication range"""
         self.adj_matrix = np.zeros((self._num_agents, self._num_agents), dtype=np.int64)
         for i in range(self._num_agents):
             for j in range(i + 1, self._num_agents):
-                dist = np.linalg.norm(self.agent_locations[i] - self.agent_locations[j])
+                dist = np.linalg.norm(locations[i] - locations[j])
                 if dist <= self.cr:
                     self.adj_matrix[i][j] = 1
                     self.adj_matrix[j][i] = 1
@@ -272,7 +272,7 @@ class GridWorldEnv(ParallelEnv):
             new_positions.append((self.size - 1,0))
         self.agent_locations = np.array(new_positions)
 
-        self._build_adj_matrix()
+        self._build_adj_matrix(self.agent_locations)
         G = nx.from_numpy_array(self.adj_matrix)
         connected = nx.is_connected(G)
 
