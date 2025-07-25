@@ -8,6 +8,9 @@ class RewardScheme:
     def calculate_rewards(self, agent_rewards, step_info, env):
         raise NotImplementedError
 
+    def get_terminated(self):
+        return self.reward_scheme.get('termination_bonus', 100)
+
 
 class Default(RewardScheme):
     def calculate_rewards(self, agent_rewards, step_info, env):
