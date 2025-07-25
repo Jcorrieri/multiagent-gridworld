@@ -11,7 +11,8 @@ from gymnasium import spaces
 from pettingzoo import ParallelEnv
 from pettingzoo.utils.env import AgentID
 
-import utils
+import environment.rewards
+from environment.rewards import RewardScheme
 
 
 class Actions(Enum):
@@ -49,9 +50,7 @@ class GridWorldEnv(ParallelEnv):
         self.max_coverage = 0
         self.timestep = 0
 
-        reward_scheme = env_params.get("reward_scheme", {})
-        for key in reward_scheme.keys():
-            setattr(self, key, reward_scheme[key])
+        self.reward_scheme: RewardScheme = env_params.get("reward_scheme", {})
 
         self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
         self.visibility_mask = np.zeros((self.size, self.size), dtype=int)
@@ -124,6 +123,7 @@ class GridWorldEnv(ParallelEnv):
             intersect = coords_set & mask_set
             for r, c in intersect:
                 obs[r, c, 0] = 1.0
+                self.visited_tiles[r, c] = 1.0
         else:
             obs[self.obs_mat[:, 0], self.obs_mat[:, 1], 0] = 1.0
 
@@ -140,11 +140,6 @@ class GridWorldEnv(ParallelEnv):
         mask = self.visited_tiles == 1
         obs[mask, 3] = 1.0
 
-        # Layer 4 (Optional): Visibility Mask
-        # if use_local_fov:
-        #     mask = self.visibility_mask == 1
-        #     obs[mask, 4] = 1.0
-
         return obs
 
     def _generate_local_obs(self):
@@ -160,27 +155,6 @@ class GridWorldEnv(ParallelEnv):
             locations = np.stack((rr, cc), axis=-1).reshape(-1, 2)  # all visible tiles
 
             self.visibility_mask[locations[:, 0], locations[:, 1]] = 1
-
-    def _calc_rewards(self, rewards, step_info):
-        connected = step_info["connected"]
-        collisions = step_info["collisions"]
-
-        for i, agent in enumerate(self.agents):
-            current_pos = self.agent_locations[i]
-
-            if self.visited_tiles[current_pos[0], current_pos[1]] == 0 and connected:
-                rewards[agent] += getattr(self, 'new_tile_visited_connected')
-            elif self.visited_tiles[current_pos[0], current_pos[1]] == 0:
-                rewards[agent] += getattr(self, 'new_tile_visited_disconnected')
-            elif connected:
-                rewards[agent] += getattr(self, 'old_tile_visited_connected')
-            else:
-                rewards[agent] += getattr(self, 'old_tile_visited_disconnected')
-
-            self.visited_tiles[current_pos[0], current_pos[1]] = 1
-
-            if collisions[agent]:
-                rewards[agent] += getattr(self, 'obstacle_penalty')
 
     def _generate_spawns(self):
         if self.base_station:
@@ -212,13 +186,15 @@ class GridWorldEnv(ParallelEnv):
 
         # self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
 
-        self.max_coverage = self.size**2 - len(self.obs_mat)
+        self.max_coverage = self.size**2
 
         self._generate_spawns()
         self._build_adj_matrix()
 
         if self.use_local_fov:
             self._generate_local_obs()
+        else:
+            self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0
 
         observations = {}
         infos = {}
@@ -279,7 +255,7 @@ class GridWorldEnv(ParallelEnv):
         coverage = np.sum(self.visited_tiles > 0) / self.max_coverage
 
         step_info = {
-            "coverage": coverage * 100,
+            "coverage": float(coverage * 100),
             "timestep": self.timestep,
             "connected": connected,
             "collisions": collisions,
@@ -287,7 +263,10 @@ class GridWorldEnv(ParallelEnv):
         }
 
         # Calculate rewards
-        self._calc_rewards(rewards, step_info)
+        self.reward_scheme.calculate_rewards(rewards, step_info, self)
+
+        for loc in self.agent_locations:
+            self.visited_tiles[loc[0], loc[1]] = 1
 
         if self.use_local_fov:
             self._generate_local_obs()
@@ -305,7 +284,7 @@ class GridWorldEnv(ParallelEnv):
         all_visited = np.sum(self.visited_tiles > 0) == self.max_coverage
         if all_visited:
             for agent in self.agents:
-                rewards[agent] += self.termination_bonus
+                rewards[agent] += self.reward_scheme.get_terminated()
             terminated = {agent: True for agent in self.agents}
             self.agents = []
 
@@ -474,19 +453,12 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    reward_scheme = {
-        'new_tile_visited_connected': 4.0,
-        'old_tile_visited_connected': -0.1,
-        'new_tile_visited_disconnected': -0.5,
-        'old_tile_visited_disconnected': -0.8,
-        'obstacle_penalty': -1.0,
-        'terminated': 200
-    }
+    reward_scheme = environment.rewards.Components({})
 
     env = GridWorldEnv({
         'render_mode': "human",
         'map_dir_path': '../obstacle-mats/testing',
-        'base_station': True,
+        'base_station': False,
         'fov': 25,
         'reward_scheme': reward_scheme
     })

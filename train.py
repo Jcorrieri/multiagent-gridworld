@@ -9,9 +9,8 @@ from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
 from pettingzoo import ParallelEnv
 
-from environment.env_factory import make_env
+from utils import make_env, plot_metrics
 from models.rl_wrapper import CustomTorchModelV2
-from utils import plot_metrics
 
 
 def build_config(env_config: dict, training_config: dict):
@@ -94,9 +93,7 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
     return config
 
 def create_model_directories(env_config: dict, args: argparse.Namespace):
-    default_env_names = ["default", "alt_reward"]
-
-    if env_config['env_name'] in default_env_names:
+    if env_config['env_name'] == 'gridworld':
         if env_config['base_station']:
             experiment_dir = 'experiments\\base-station'
         else:
@@ -131,6 +128,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print(f"Using device: {args.device}")
     print(f"Module: {training_config['module_file']}")
     print(f"Environment: {env_config['env_name']}")
+    print(f"Reward Scheme: {env_config['reward_scheme']}")
 
     ckpt_dir, save_dir, train_metrics_dir, test_result_dir = create_model_directories(env_config, args)
 

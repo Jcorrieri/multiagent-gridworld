@@ -1,5 +1,5 @@
 environment:
-    env_name: default
+    env_name: gridworld
     base_station: False
     fov: 25
     max_steps: 2000
@@ -7,13 +7,15 @@ environment:
     num_agents: 10
     cr: 10
 
-reward_scheme:
-    new_tile_visited_connected: 2.0
-    old_tile_visited_connected: 2.0
-    new_tile_visited_disconnected: -2.0
-    old_tile_visited_disconnected: -2.0
-    obstacle_penalty: -1.0
-    termination_bonus: 200
+rewards:
+    module: default
+    params:
+        new_tile_visited_connected: 2.0
+        old_tile_visited_connected: 2.0
+        new_tile_visited_disconnected: -2.0
+        old_tile_visited_disconnected: -2.0
+        obstacle_penalty: -1.0
+        termination_bonus: 200
 
 training:
     module_file: cnn_3conv2linear.py
