@@ -23,7 +23,7 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │   ├── default.txt
 │   └── ...
 │
-├── env/
+├── environment/
 │   ├── envs/                              
 │   │   ├── gridworld.py
 │   │   └── ...
@@ -34,7 +34,7 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │   │   └── training/
 │   │       ├── mat0
 │   │       └── ...
-│   └── env_factory.py                              
+│   └── rewards.py                              
 │
 ├── experiments/                                    # training and testing files split by scenario
 │   ├── base-station/                               
@@ -60,9 +60,9 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 │       └── ...
 │
 ├── models/                                         # neural network architectures
-│   ├── cnn_1conv2linear.py
-│   ├── cnn_1conv3linear.py
-│   ├── cnn_2conv3linear.py                        
+│   ├── arch/
+│   │   ├── cnn_2conv3linear.py
+│   │   └── ...                        
 │   └── rl_wrapper.py                               # wrapper for Ray RLlib
 │
 ├── main.py                                         # main entry point for training and testing
@@ -73,47 +73,49 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 
 ## Usage:
 
-Everything is configured through a central configuration file located under ```config/default```
+Everything is configured through a central configuration file located under ```config/```
 
 ```yaml
 environment:
   env_name: gridworld                               # gridworld or baseline
   base_station: False                               # include fixed base station
-  fov: 25                                  
+  fov: 4                                  
   max_steps: 1000                          
   size: 25
   num_agents: 5
   cr: 10                                            # communication range between agents
 
 reward_scheme:
-  new_tile_visited_connected: 2.0
-  old_tile_visited_connected: -0.1
-  new_tile_visited_disconnected: -4.0
-  old_tile_visited_disconnected: -4.0
-  obstacle: -0.5
-  terminated: 200
+  module: components
+  params:
+    new_tile: 0.5
+    total_coverage_bonus: 0.5
+    total_teammate_bonus: 1.0
+    missing_teammate_penalty: -0.8
+    termination_bonus: 100
 
 training:
-  module_file: cnn_1conv2linear.py                  # PyTorch network architecture
+  module_file: cnn_2conv3linear.py
   num_episodes: 5000
-  target_reward: 1550                               # for early stoppage
-  gamma: 0.95
-  lr: 0.0003
+  target_reward: 10000
+  gamma: 0.99
+  lr: 0.0001
   grad_clip: 1.0
-  train_batch_size: 4000
+  train_batch_size: 8192
   num_passes: 5
-  minibatch_size: 400
+  minibatch_size: 1024
   l2_regularization: 0.0001
   lambda_: 0.95
-  entropy_coeff: [[0, 0.1], [1000000, 0.001]]
+  entropy_coeff: [[0, 0.01]]
   clip_param: 0.2
+  vf_clip_param: 10.0
 
 testing:
   num_episodes_per_map: 10                          # num_episodes * 50 maps  
   seed: 42
   explore: True                                     # recommended value: True
   render: True
-  model_path: default-env/v1
+  model_path: default-env/v0
   checkpoint: -1                                    # set > -1 to restore from a checkpoint (model_path/ckpt/<number>)
 ```
 
@@ -121,7 +123,7 @@ testing:
 
 Run ```python main.py```
 
-- Select a neural network architecture from ```models/``` using the ```module_file``` parameter.
+- Select a neural network architecture from ```models/arch/``` using the ```module_file``` parameter.
   - You can add your own architecture(s) as long as it mimics the ActorCriticCNNModel class.
 - You can select how many episodes to train for using ```num_episodes```.
 - A copy of the configuration when training will be saved at ```...model_path/config.txt```. 

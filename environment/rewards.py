@@ -25,7 +25,7 @@ class Default(RewardScheme):
             elif env.visited_tiles[current_pos[0], current_pos[1]] == 0:
                 agent_rewards[agent] += self.reward_scheme.get('new_tile_visited_disconnected', -2.0)
             elif connected:
-                agent_rewards[agent] += self.reward_scheme.get('old_tile_visited_connected', 2.0)
+                agent_rewards[agent] += self.reward_scheme.get('old_tile_visited_connected', 0.5)
             else:
                 agent_rewards[agent] += self.reward_scheme.get('old_tile_visited_disconnected', -2.0)
 
@@ -69,19 +69,19 @@ class ExplorerMaintainer(RewardScheme):
 class Components(RewardScheme):
     # For Tile Discovery:
     #
-    # Lone agent: +0.5 + (0-0.5) + 0.2 - 3.2 = -2.5 to -2.0
-    # Team of 2/5: +0.5 + (0-0.5) + 0.4 - 2.4 = -1.5 to -1.0
-    # Team of 3/5: +0.5 + (0-0.5) + 0.6 - 1.6 = -0.5 to 0.0
-    # Team of 4/5: +0.5 + (0-0.5) + 0.8 - 0.8 = +0.5 to +1.0
-    # Team of 5/5: +0.5 + (0-0.5) + 1.0 - 0.0 = +1.5 to +2.0
-    #
+    # Lone agent:    +0.5 + (0.0–0.5) + 0.2 - 3.2 = [-2.5, -2.0]
+    # Team of 2/5:   +0.5 + (0.0–0.5) + 0.4 - 2.4 = [-1.5, -1.0]
+    # Team of 3/5:   +0.5 + (0.0–0.5) + 0.6 - 1.6 = [-0.5, -0.0]
+    # Team of 4/5:   +0.5 + (0.0–0.5) + 0.8 - 0.8 = [+0.5, +1.0]
+    # Team of 5/5:   +0.5 + (0.0–0.5) + 1.0 - 0.0 = [+1.5, +2.0]
+
     # For No Discovery:
     #
-    # Lone agent: -3.2
-    # Team of 2/5: -2.4
-    # Team of 3/5: -1.6
-    # Team of 4/5: -0.8
-    # Team of 5/5: 0.0
+    # Lone agent:     0.2 - 3.2 = -3.0
+    # Team of 2/5:    0.4 - 2.4 = -2.0
+    # Team of 3/5:    0.6 - 1.6 = -1.0
+    # Team of 4/5:    0.8 - 0.8 =  0.0
+    # Team of 5/5:    1.0 - 0.0 = +1.0
     def calculate_rewards(self, agent_rewards, step_info, env):
         total_teammate_bonus = self.reward_scheme.get('total_teammate_bonus', 1.0)
         missing_teammate_penalty = self.reward_scheme.get('missing_teammate_penalty', -0.8)
@@ -101,11 +101,12 @@ class Components(RewardScheme):
                 if f"agent_{agent_idx}" not in env.agents: # base-station
                     break
 
-                # All agents get the disconnect penalty
+                # All agents get the disconnect penalty and teammate bonus
                 agent_rewards[f"agent_{agent_idx}"] += disconnect_penalty
+                agent_rewards[f"agent_{agent_idx}"] += teammate_bonus
 
-                # Only discovering agents get teammate bonus + discovery bonuses
+                # Only discovering agents get discovery bonuses
                 current_pos = env.agent_locations[agent_idx]
                 if env.visited_tiles[current_pos[0], current_pos[1]] == 0:
-                    coverage_bonus = (step_info['coverage'] / 100) * total_coverage_bonus
-                    agent_rewards[f"agent_{agent_idx}"] += teammate_bonus + new_tile_bonus + coverage_bonus
+                    coverage_bonus = ((step_info['coverage'] / 100) ** 2) * total_coverage_bonus
+                    agent_rewards[f"agent_{agent_idx}"] += new_tile_bonus + coverage_bonus
