@@ -39,7 +39,7 @@ def test(env_config, test_config) -> None:
     if test_config.get("render", False):
         env_config["render_mode"] = "human"
 
-    model = test_config.get("model_path", "default-env/v1")
+    model = test_config.get("model_path", "default-env/v0")
     checkpoint_dir = os.path.join("experiments", model)
     if test_config.get("checkpoint", -1) >= 0:
         checkpoint_dir = os.path.join(checkpoint_dir, f"ckpt/{test_config['checkpoint']}")
@@ -110,6 +110,6 @@ def test(env_config, test_config) -> None:
         metrics_dir = os.path.join("experiments", model, "test-results/results.csv")
 
         df = pd.DataFrame(csv_data)
-        df.to_csv(metrics_dir, index=False)
+        df.to_csv(metrics_dir, index=False, mode='a')
 
         print(f"Results saved to {metrics_dir}/results.csv")

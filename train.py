@@ -27,7 +27,8 @@ def build_config(env_config: dict, training_config: dict):
         optimizer={"weight_decay": training_config.get("l2_regularization", 0.001)},
         lambda_=training_config.get("lambda_", 0.95),
         entropy_coeff_schedule=training_config.get("entropy_coeff", None),
-        clip_param=training_config.get("clip_param", 0.3)
+        clip_param=training_config.get("clip_param", 0.3),
+        vf_clip_param=training_config.get("vf_clip_param", 10.0),
     )
 
     config = get_default_config(
@@ -73,7 +74,7 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
             **ppo_params
         )
         .env_runners(
-            num_env_runners=2,
+            num_env_runners=4,
             num_envs_per_env_runner=2,
             rollout_fragment_length="auto"
         )
@@ -83,6 +84,9 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
         .evaluation(
             evaluation_num_env_runners=0,
             evaluation_interval=None
+        )
+        .debugging(
+            seed=42
         )
         .api_stack(
             enable_env_runner_and_connector_v2=False,

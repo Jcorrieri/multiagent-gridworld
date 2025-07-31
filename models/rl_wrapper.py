@@ -5,19 +5,17 @@ import torch.nn as nn
 from ray.rllib.utils.annotations import override
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 
-from models.cnn_1conv3linear import ActorCriticCNNModel
-
 
 class CustomTorchModelV2(TorchModelV2, nn.Module):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
 
-        module_file = kwargs.get("module_file", "cnn_1conv3linear.py")
+        module_file = kwargs.get("module_file", "arch/cnn_1conv2linear.py")
         if ".py" not in module_file:
             module_file += ".py"
 
-        models_dir = os.path.abspath("models")
+        models_dir = os.path.abspath("models/arch")
         module_path = os.path.join(models_dir, module_file)
         module_name = os.path.splitext(os.path.basename(module_path))[0]
         spec = importlib.util.spec_from_file_location(module_name, module_path)
