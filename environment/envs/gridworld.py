@@ -189,7 +189,7 @@ class GridWorldEnv(ParallelEnv):
         self.max_coverage = self.size**2
 
         self._generate_spawns()
-        self._build_adj_matrix()
+        self._build_adj_matrix(self.agent_locations)
 
         if self.use_local_fov:
             self._generate_local_obs()
