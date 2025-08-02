@@ -90,9 +90,9 @@ def test(env_config, test_config) -> None:
 
         print("-"*40)
         print(f"| {title:<36} |")
-        print(f"| {'Reward:':<20} {round(avg_reward, 2):>15} |")
+        print(f"| {'Reward:':<20} {avg_reward:>15} |")
         print(f"| {'Steps:':<20} {avg_steps:>15} |")
-        print(f"| {'Coverage:':<20} {avg_coverage:>15} |")
+        print(f"| {'Coverage:':<20} {avg_coverage:>15}% |")
         print(f"| {'Num Disconnects:':<20} {avg_breaks:>15} |")
         print(f"| {'Percentage Connected:':<20} {percent_connected:>13}% |")
         print(f"| {'Communication Ratio:':<20} {comm_ratio:>15}%")
@@ -100,6 +100,7 @@ def test(env_config, test_config) -> None:
 
         csv_data = {
             "Num_Robots": [env_config["num_agents"]],
+            "Avg_Reward": [avg_reward],
             "Avg_Num_Disconnects": [avg_breaks],
             "Avg_Connection_Percent": [percent_connected],
             "Communication_Ratio": [comm_ratio],
@@ -109,7 +110,11 @@ def test(env_config, test_config) -> None:
 
         metrics_dir = os.path.join("experiments", model, "test-results/results.csv")
 
+        header = True
+        if os.path.exists(metrics_dir):
+            header = False
+
         df = pd.DataFrame(csv_data)
-        df.to_csv(metrics_dir, index=False, mode='a')
+        df.to_csv(metrics_dir, index=False, mode='a', header=header)
 
         print(f"Results saved to {metrics_dir}/results.csv")

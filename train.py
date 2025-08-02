@@ -92,13 +92,15 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
     return config
 
 def create_model_directories(env_config: dict, args: argparse.Namespace):
+    experiment_dir = os.path.abspath("experiments")
+
     if env_config['env_name'] == 'gridworld':
         if env_config['base_station']:
-            experiment_dir = 'experiments\\base-station'
+            experiment_dir = os.path.join(experiment_dir, "base-station")
         else:
-            experiment_dir = 'experiments\\default-env'
+            experiment_dir = os.path.join(experiment_dir, "default-env")
     else:
-        experiment_dir = 'experiments\\baseline'
+        experiment_dir = os.path.join(experiment_dir, "baseline")
 
     model_dir = os.path.join(experiment_dir, 'v0')
     i = 1
@@ -117,7 +119,9 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
             os.rmdir(path)
         os.makedirs(path)
 
-    shutil.copy(f"config\\{args.config}", f'{model_dir}\\config')
+    source_path = os.path.join("config", args.config)
+    dest_path = os.path.join(model_dir, "config")
+    shutil.copy(source_path, dest_path)
 
     return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
 
@@ -166,8 +170,10 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
         data.append([episode_reward_mean, episode_len_mean, episodes_elapsed])
 
         if i != 0 and i % ckpt_interval == 0:
-            os.mkdir(f"{ckpt_dir}/{(i // ckpt_interval)}/")
-            trainer.save_checkpoint(f"{ckpt_dir}/{(i // ckpt_interval)}/")
+            index = i // ckpt_interval
+            full_ckpt_dir = os.path.join(ckpt_dir, str(index))
+            os.makedirs(full_ckpt_dir, exist_ok=False)
+            trainer.save_checkpoint(ckpt_dir)
 
         # Stop training if the average reward reaches target for 20 consecutive iterations
         if episode_reward_mean >= target_rew:

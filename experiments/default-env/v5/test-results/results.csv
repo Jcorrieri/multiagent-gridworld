@@ -1,0 +1,3 @@
+Num_Robots,Avg_Reward,Avg_Num_Disconnects,Avg_Connection_Percent,Communication_Ratio,Avg_Duration_Steps,Avg_Coverage_Percent
+5,604.25,30.0,92.81,0.0,417.0,100.0
+5,-182.2,117.0,88.3,0.0,1000.0,92.16
