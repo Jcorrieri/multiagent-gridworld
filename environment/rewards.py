@@ -18,13 +18,14 @@ class Default(RewardScheme):
         prev_coverage = (step_info['prev_coverage'] / 100)
 
         exploration_reward = (coverage - prev_coverage) * 100
-        disconnection_penalty = -0.2
+        disconnection_penalty = -0.5
         obstacle_penalty = -0.1
         timestep_penalty = -0.01
 
         for agent in env.agents:
             if collisions[agent]:
                 agent_rewards[agent] += obstacle_penalty
+
             if not connected:
                 agent_rewards[agent] += disconnection_penalty
 

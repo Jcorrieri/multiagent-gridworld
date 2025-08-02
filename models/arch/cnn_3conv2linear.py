@@ -26,19 +26,15 @@ class ActorCriticCNNModel(nn.Module):
             flattened_size = out.flatten(1).size(1)
 
         self.actor_head = nn.Sequential(
-            nn.Linear(flattened_size, 128),
+            nn.Linear(flattened_size, 256),
             nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, num_outputs)  # output layer
+            nn.Linear(256, num_outputs)
         )
 
         self.critic_head = nn.Sequential(
-            nn.Linear(flattened_size, 128),
+            nn.Linear(flattened_size, 256),
             nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)  # output layer
+            nn.Linear(256, 1)
         )
 
     def forward(self, obs):
