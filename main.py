@@ -1,4 +1,5 @@
 import argparse
+import os.path
 import warnings
 import torch
 import yaml
@@ -16,17 +17,20 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.device = device
 
-    with open(f"config/{args.config}", 'r') as f:
+    config_path = os.path.join("config", args.config)
+    with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
     torch.manual_seed(config['testing'].get("seed", 42))
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(config['testing'].get("seed", 42))
 
+    train_mat_path = os.path.join("environment", "obstacle-mats", "training")
+    test_mat_path = os.path.join("environment", "obstacle-mats", "testing")
     if args.test:
-        map_dir_path = "environment/obstacle-mats/testing"
+        map_dir_path = test_mat_path
     else:
-        map_dir_path = "environment/obstacle-mats/training"
+        map_dir_path = train_mat_path
 
     reward_scheme_module = config['environment']['reward_scheme']
     reward_scheme = make_reward_scheme(reward_scheme_module)

@@ -467,6 +467,7 @@ if __name__ == "__main__":
         'map_dir_path': '../obstacle-mats/testing',
         'base_station': False,
         'fov': 25,
+        'num_agents': 5,
         'reward_scheme': reward_scheme
     })
 
@@ -475,7 +476,7 @@ if __name__ == "__main__":
     episode_over = False
     r = 0.0
     while not episode_over:
-        vals = np.random.default_rng().integers(low=0, high=5, size=5)
+        vals = np.random.default_rng().integers(low=0, high=5, size=env.num_agents)
         actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(vals)}
         observations, rewards, terminated, truncated, infos = env.step(actions_dict)
         r += sum(rewards.values())
