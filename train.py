@@ -16,19 +16,15 @@ from models.rl_wrapper import CustomTorchModelV2
 def build_config(env_config: dict, training_config: dict):
     dummy_env = make_env(env_config)
 
-    # PPO training parameters
-    ppo_params = dict(
-        gamma=training_config.get("gamma", 0.9),
-        lr=training_config.get("lr", 0.0001),
-        grad_clip=training_config.get("grad_clip", 1.0),
-        train_batch_size=training_config.get("train_batch_size", 8000),
-        num_epochs=training_config.get("num_passes", 5),
-        minibatch_size=training_config.get("minibatch_size", 800),
-        optimizer={"weight_decay": training_config.get("l2_regularization", 0.001)},
-        lambda_=training_config.get("lambda_", 0.95),
-        entropy_coeff_schedule=training_config.get("entropy_coeff", None),
-        clip_param=training_config.get("clip_param", 0.3)
-    )
+    ppo_params = training_config.copy()
+    ppo_params.pop('module_file')
+    ppo_params.pop('num_episodes')
+    ppo_params.pop('target_reward')
+
+    if training_config.get('l2_regularization'):
+        optimizer = {"weight_decay": training_config['l2_regularization']}
+        ppo_params.pop('l2_regularization')
+        ppo_params['optimizer'] = optimizer
 
     config = get_default_config(
         env_config,
@@ -73,8 +69,8 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
             **ppo_params
         )
         .env_runners(
-            num_env_runners=2,
-            num_envs_per_env_runner=2,
+            num_env_runners=6,
+            num_envs_per_env_runner=1,
             rollout_fragment_length="auto"
         )
         .resources(
@@ -83,6 +79,9 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
         .evaluation(
             evaluation_num_env_runners=0,
             evaluation_interval=None
+        )
+        .debugging(
+            seed=42
         )
         .api_stack(
             enable_env_runner_and_connector_v2=False,
@@ -152,7 +151,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
 
     data = []
     episodes_elapsed = 0
-    num_iterations = int(num_episodes / (train_batch_size / max_steps))
+    num_iterations = int(num_episodes * max_steps / train_batch_size)
     for i in range(num_iterations):
         result = trainer.train()
 

@@ -16,17 +16,16 @@ def parse_optimizer(parser):
 def register_envs():
     register_ray_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
 
-def make_reward_scheme(module, params) -> RewardScheme:
+def make_reward_scheme(module) -> RewardScheme:
     if module == "explorer_maintainer":
-        return ExplorerMaintainer(params)
+        return ExplorerMaintainer()
     elif module == "components":
-        return Components(params)
+        return Components()
     else:
-        return Default(params)
+        return Default()
 
 def make_env(env_config: dict):
     name = env_config.get('env_name', 'default')
-
     if name == "baseline":
         pass
     else:

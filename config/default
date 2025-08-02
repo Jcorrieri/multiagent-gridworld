@@ -1,41 +1,31 @@
 environment:
     env_name: gridworld
+    reward_scheme: default
     base_station: False
-    fov: 25
-    max_steps: 2000
+    fov: 4
+    max_steps: 1000
     size: 25
-    num_agents: 10
+    num_agents: 5
     cr: 10
 
-rewards:
-    module: default
-    params:
-        new_tile_visited_connected: 2.0
-        old_tile_visited_connected: 2.0
-        new_tile_visited_disconnected: -2.0
-        old_tile_visited_disconnected: -2.0
-        obstacle_penalty: -1.0
-        termination_bonus: 200
-
 training:
-    module_file: cnn_3conv2linear.py
+    module_file: cnn_3conv1linear.py
     num_episodes: 5000
-    target_reward: 5625
+    target_reward: 700
     gamma: 0.90
     lr: 0.0001
     grad_clip: 1.0
-    train_batch_size: 8000
-    num_passes: 5
-    minibatch_size: 800
+    train_batch_size: 10000
+    num_epochs: 5
+    minibatch_size: 1000
     l2_regularization: 0.0001
     lambda_: 0.90
-    #entropy_coeff: [[0, 0.01], [4000000, 0.01], [5000000, 0.001]]
-    #clip_param: 0.3
+    entropy_coeff_schedule: [[0, 0.05], [5_000_000, 0.01], [15_000_000, 0.005], [22_500_000, 0.0001]]
 
 testing:
     num_episodes_per_map: 1
     seed: 42
     explore: True
     render: True
-    model_path: default-env/v2
-    checkpoint: -1
+    model_path: default-env/v1
+    checkpoint: 2

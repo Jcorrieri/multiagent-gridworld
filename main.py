@@ -28,16 +28,15 @@ def main():
     else:
         map_dir_path = "environment/obstacle-mats/training"
 
-    reward_scheme_module = config['rewards']['module']
-    reward_scheme_params = config['rewards']['params']
-    reward_scheme = make_reward_scheme(reward_scheme_module, reward_scheme_params)
+    reward_scheme_module = config['environment']['reward_scheme']
+    reward_scheme = make_reward_scheme(reward_scheme_module)
+    config['environment']['reward_scheme'] = reward_scheme
 
     register_envs()
 
     env_config = dict(
         map_dir_path=map_dir_path,
         render_mode="rgb_array",
-        reward_scheme=reward_scheme,
         **config['environment']
     )
 

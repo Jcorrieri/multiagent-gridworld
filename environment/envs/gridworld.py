@@ -12,7 +12,7 @@ from pettingzoo import ParallelEnv
 from pettingzoo.utils.env import AgentID
 
 import environment.rewards
-from environment.rewards import RewardScheme
+from environment.rewards import RewardScheme, Default
 
 
 class Actions(Enum):
@@ -50,7 +50,7 @@ class GridWorldEnv(ParallelEnv):
         self.max_coverage = 0
         self.timestep = 0
 
-        self.reward_scheme: RewardScheme = env_params.get("reward_scheme", {})
+        self.reward_scheme: RewardScheme = env_params.get("reward_scheme", Default())
 
         self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
         self.visibility_mask = np.zeros((self.size, self.size), dtype=int)
@@ -225,6 +225,8 @@ class GridWorldEnv(ParallelEnv):
         for pos in previous_locations:
             occupied_positions.add(tuple(pos))
 
+        visited_count = np.sum(self.visited_tiles > 0)  # for proper coverage calculation
+
         # Determine new positions
         new_positions = []
         collisions = {agent: False for agent in self.agents}
@@ -236,6 +238,9 @@ class GridWorldEnv(ParallelEnv):
             # Check if proposed position is already claimed
             pos_tuple = tuple(proposed_position)
             if pos_tuple not in occupied_positions:
+                if self.visited_tiles[pos_tuple[0], pos_tuple[1]] == 0:
+                    visited_count += 1
+
                 new_positions.append(proposed_position)
                 occupied_positions.remove(tuple(previous_locations[i]))
                 occupied_positions.add(pos_tuple)
@@ -252,10 +257,12 @@ class GridWorldEnv(ParallelEnv):
         G = nx.from_numpy_array(self.adj_matrix)
         connected = nx.is_connected(G)
 
-        coverage = np.sum(self.visited_tiles > 0) / self.max_coverage
+        coverage = visited_count / self.max_coverage
+        prev_coverage = np.sum(self.visited_tiles > 0) / self.max_coverage
 
         step_info = {
             "coverage": float(coverage * 100),
+            "prev_coverage": float(prev_coverage * 100),
             "timestep": self.timestep,
             "connected": connected,
             "collisions": collisions,
@@ -281,7 +288,7 @@ class GridWorldEnv(ParallelEnv):
                 "connection_broken": not step_info['connected'],
             }
 
-        all_visited = np.sum(self.visited_tiles > 0) == self.max_coverage
+        all_visited = visited_count == self.max_coverage
         if all_visited:
             for agent in self.agents:
                 rewards[agent] += self.reward_scheme.get_terminated()
@@ -453,7 +460,7 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    reward_scheme = environment.rewards.Components({})
+    reward_scheme = environment.rewards.Default()
 
     env = GridWorldEnv({
         'render_mode': "human",
@@ -466,10 +473,13 @@ if __name__ == "__main__":
     # unit test -- default env
     obs, _ = env.reset()
     episode_over = False
+    r = 0.0
     while not episode_over:
         vals = np.random.default_rng().integers(low=0, high=5, size=5)
         actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(vals)}
         observations, rewards, terminated, truncated, infos = env.step(actions_dict)
+        r += sum(rewards.values())
+        print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(r, 2), end="")
         episode_over = all(terminated.values()) or all(truncated.values())
 
     # parallel_api_test(env, num_cycles=1_000_000)
