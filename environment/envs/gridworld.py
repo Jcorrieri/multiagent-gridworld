@@ -96,12 +96,12 @@ class GridWorldEnv(ParallelEnv):
         """Return action space for a specific agent"""
         return spaces.Discrete(5)  # 5 actions: right, up, left, down, no-op
 
-    def _build_adj_matrix(self):
+    def _build_adj_matrix(self, locations):
         """Build adjacency matrix based on communication range"""
         self.adj_matrix = np.zeros((self._num_agents, self._num_agents), dtype=np.int64)
         for i in range(self._num_agents):
             for j in range(i + 1, self._num_agents):
-                dist = np.linalg.norm(self.agent_locations[i] - self.agent_locations[j])
+                dist = np.linalg.norm(locations[i] - locations[j])
                 if dist <= self.cr:
                     self.adj_matrix[i][j] = 1
                     self.adj_matrix[j][i] = 1
@@ -184,12 +184,10 @@ class GridWorldEnv(ParallelEnv):
         map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')
         self.obs_mat = np.loadtxt(map_path, delimiter=' ', dtype='int')
 
-        # self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
-
         self.max_coverage = self.size**2
 
         self._generate_spawns()
-        self._build_adj_matrix()
+        self._build_adj_matrix(self.agent_locations)
 
         if self.use_local_fov:
             self._generate_local_obs()
@@ -219,7 +217,7 @@ class GridWorldEnv(ParallelEnv):
         terminated = {agent: False for agent in self.agents}
         truncated = {agent: False for agent in self.agents}
 
-        previous_locations = self.agent_locations.copy()
+        previous_locations = self.agent_locations
 
         occupied_positions = set([(x, y) for x, y in self.obs_mat])
         for pos in previous_locations:
@@ -233,12 +231,16 @@ class GridWorldEnv(ParallelEnv):
         for i, agent in enumerate(self.agents):
             action = actions[agent]
             direction = self._action_to_direction[action]
-            proposed_position = np.clip(previous_locations[i] + direction, 0, self.size - 1)
 
-            # Check if proposed position is already claimed
+            proposed_position = previous_locations[i] + direction
             pos_tuple = tuple(proposed_position)
-            if pos_tuple not in occupied_positions:
-                if self.visited_tiles[pos_tuple[0], pos_tuple[1]] == 0:
+
+            r, c = proposed_position
+            out_of_bounds = r < 0 or r >= self.size or c < 0 or c >= self.size
+            valid_move = action == Actions.no_op or (not out_of_bounds and pos_tuple not in occupied_positions)
+
+            if valid_move:
+                if self.visited_tiles[r, c] == 0:
                     visited_count += 1
 
                 new_positions.append(proposed_position)
@@ -253,7 +255,7 @@ class GridWorldEnv(ParallelEnv):
             new_positions.append((self.size - 1,0))
         self.agent_locations = np.array(new_positions)
 
-        self._build_adj_matrix()
+        self._build_adj_matrix(self.agent_locations)
         G = nx.from_numpy_array(self.adj_matrix)
         connected = nx.is_connected(G)
 

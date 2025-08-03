@@ -100,7 +100,7 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
         else:
             experiment_dir = os.path.join(experiment_dir, "default-env")
     else:
-        experiment_dir = os.path.join(experiment_dir, "baseline")
+        raise FileNotFoundError("Please provide a valid environment name (i.e. gridworld)")
 
     model_dir = os.path.join(experiment_dir, 'v0')
     i = 1
