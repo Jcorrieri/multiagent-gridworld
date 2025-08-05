@@ -2,14 +2,15 @@ import os.path
 
 import pandas as pd
 from ray.rllib.algorithms import Algorithm
-from ray.rllib.env import ParallelPettingZooEnv
 from ray.rllib.models import ModelCatalog
 
-from utils import make_env
+from environment.envs.baseline import BaselineEnv
+from environment.envs.gridworld import GridWorldEnv
 from models.rl_wrapper import CustomTorchModelV2
+from utils import make_env
 
 
-def test_one_episode(test_env: ParallelPettingZooEnv, model: Algorithm, explore: bool):
+def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, explore: bool):
     observations, _ = test_env.reset()
     episode_over = False
     coverage, total_reward, steps, num_breaks = 0, 0, 0, 0
@@ -21,7 +22,7 @@ def test_one_episode(test_env: ParallelPettingZooEnv, model: Algorithm, explore:
                 explore=explore
             )
             for agent in observations
-        }
+        } if model else test_env.execute_algorithm()
 
         observations, rewards, terminated, truncated, infos = test_env.step(actions)
 
@@ -34,13 +35,9 @@ def test_one_episode(test_env: ParallelPettingZooEnv, model: Algorithm, explore:
         episode_over = all(terminated.values()) or all(truncated.values())
     return total_reward, steps, num_breaks, coverage
 
-def test(env_config, test_config) -> None:
-    env_config["seed"] = test_config.get("seed", 42)
-    if test_config.get("render", False):
-        env_config["render_mode"] = "human"
-
-    model = test_config.get("model_path", "default-env/v0")
-    checkpoint_dir = os.path.join("experiments", model)
+def build_algo(test_config) -> (Algorithm, str):
+    model_dir = test_config.get("model_path", "default-env/v0")
+    checkpoint_dir = os.path.join("experiments", model_dir)
     if test_config.get("checkpoint", -1) >= 0:
         checkpoint_dir = os.path.join(checkpoint_dir, f"ckpt/{test_config['checkpoint']}")
     else:
@@ -50,6 +47,23 @@ def test(env_config, test_config) -> None:
     if not os.path.exists(checkpoint_dir):
         raise FileNotFoundError("Model path does not exist, please check \'model_path\' in the config file.")
 
+    ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
+    tester = Algorithm.from_checkpoint(checkpoint_dir)
+
+    return tester, model_dir
+
+
+def test(env_config, test_config) -> None:
+    env_config["seed"] = test_config.get("seed", 42)
+    if test_config.get("render", False):
+        env_config["render_mode"] = "human"
+
+    is_baseline = env_config['env_name'].strip().lower() == "baseline"
+    if is_baseline:
+        tester, model_dir = None, "baseline"
+    else:
+        tester, model_dir = build_algo(test_config)
+
     print("Testing Parameters:")
     print("-"*50)
     print(f"Seed: {env_config['seed']}")
@@ -57,14 +71,13 @@ def test(env_config, test_config) -> None:
     print(f"Reward Scheme: {env_config['reward_scheme']}")
     print("-"*50)
 
-    ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
-    tester = Algorithm.from_checkpoint(checkpoint_dir)
-
-    num_episodes = 50 * test_config.get("num_episodes_per_map", 10)
+    num_maps = 1
+    num_episodes_per_map = test_config.get("num_episodes_per_map", 10)
+    num_episodes = num_maps * num_episodes_per_map
 
     if num_episodes > 0:
         print(f"Running {num_episodes} test episodes")
-        game_env = ParallelPettingZooEnv(make_env(env_config))
+        game_env = make_env(env_config)
 
         epis_connected, total_reward, total_steps, total_breaks, total_coverage = 0, 0, 0, 0, 0
         for i in range(num_episodes):
@@ -92,13 +105,14 @@ def test(env_config, test_config) -> None:
         print(f"| {title:<36} |")
         print(f"| {'Reward:':<20} {avg_reward:>15} |")
         print(f"| {'Steps:':<20} {avg_steps:>15} |")
-        print(f"| {'Coverage:':<20} {avg_coverage:>15}% |")
+        print(f"| {'Coverage:':<20} {avg_coverage:>14}% |")
         print(f"| {'Num Disconnects:':<20} {avg_breaks:>15} |")
         print(f"| {'Percentage Connected:':<20} {percent_connected:>13}% |")
-        print(f"| {'Communication Ratio:':<20} {comm_ratio:>15}%")
+        print(f"| {'Communication Ratio:':<20} {comm_ratio:>14}% |")
         print("-"*40)
 
         csv_data = {
+            "Num_episodes_per_map": num_episodes_per_map,
             "Num_Robots": [env_config["num_agents"]],
             "Avg_Reward": [avg_reward],
             "Avg_Num_Disconnects": [avg_breaks],
@@ -108,7 +122,7 @@ def test(env_config, test_config) -> None:
             "Avg_Coverage_Percent": [avg_coverage]
         }
 
-        metrics_dir = os.path.join("experiments", model, "test-results/results.csv")
+        metrics_dir = os.path.join("experiments", model_dir, "test-results", "results.csv")
 
         header = True
         if os.path.exists(metrics_dir):

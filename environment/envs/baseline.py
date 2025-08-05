@@ -1,11 +1,15 @@
 import os
+from collections import deque, Counter
 from copy import copy
 
 import networkx as nx
 import numpy as np
+import pygame
+from scipy.ndimage import convolve
 from numpy import ndarray
 
-from environment.envs.gridworld import GridWorldEnv
+import environment.rewards
+from environment.envs.gridworld import GridWorldEnv, Actions
 
 
 class BaselineEnv(GridWorldEnv):
@@ -14,6 +18,98 @@ class BaselineEnv(GridWorldEnv):
         "render_modes": ["human", "rgb_array"],
         "render_fps": 24
     }
+
+    def __init__(self, env_params, **kwargs):
+        super().__init__(env_params, **kwargs)
+        self.in_deadlock_recovery = False
+        self.frontiers = []
+        self.s = kwargs.get("S", 20)
+        self.epsilon = kwargs.get("epsilon", 2)
+        self.hist_points = 0
+        self.minx = np.zeros(env_params['num_agents'], dtype=int)
+        self.maxx = np.zeros(env_params['num_agents'], dtype=int)
+        self.miny = np.zeros(env_params['num_agents'], dtype=int)
+        self.maxy = np.zeros(env_params['num_agents'], dtype=int)
+
+    def deadlock_recovery(self):
+        self.in_deadlock_recovery = True
+
+        rand = np.random.default_rng().integers(low=0, high=self.num_agents)
+        meeting_point = self.agent_locations[rand]
+
+        self.in_deadlock_recovery = False
+
+    def detect_deadlock(self) -> bool:
+        frontier_set = set(map(tuple, self.frontiers))
+        # check for every robot
+        for i, robot in enumerate(self.agents):
+            position = tuple(self.agent_locations[i])
+            # if a robot hits a frontier then reset
+            if position in frontier_set:
+                self.minx[i] = self.maxx[i] = position[0]
+                self.miny[i] = self.maxy[i] = position[1]
+                self.hist_points = 0
+                return False
+            else: # update the changes in x and y
+                if position[0] < self.minx[i]:
+                    self.minx[i] = position[0]
+                if position[1] < self.miny[i]:
+                    self.miny[i] = position[1]
+                if position[0] > self.maxx[i]:
+                    self.maxx[i] = position[0]
+                if position[1] > self.maxy[i]:
+                    self.maxy[i] = position[1]
+
+                # check whether last frontier visit is older than S
+                if self.hist_points > self.s:
+                    # if no progress is made
+                    if (self.maxx[i] - self.minx[i]) < self.epsilon and (self.maxy[i] - self.miny[i]) < self.epsilon:
+                        return True # deadlock
+                    else:
+                        # otherwise reset
+                        self.minx[i] = self.maxx[i] = position[0]
+                        self.miny[i] = self.maxy[i] = position[1]
+                        self.hist_points = 0
+        self.hist_points += 1 # synchronous movement means agents move all at once each step
+        return False
+
+    def get_frontiers(self):
+        # Define 4-connectivity kernel (Von Neumann neighborhood)
+        kernel = np.array([[0, 1, 0],
+                           [1, 0, 1],
+                           [0, 1, 0]])
+
+        obstacle_mask = np.zeros_like(self.visited_tiles, dtype=bool)
+        obstacle_mask[self.obs_mat[:, 0], self.obs_mat[:, 1]] = True
+
+        visited = (self.visited_tiles == 1) & (~obstacle_mask)
+
+        visited_neighbor_count = convolve(visited.astype(np.uint8), kernel, mode='constant', cval=0)
+
+        frontier_mask = (self.visited_tiles == 0) & (~obstacle_mask) & (visited_neighbor_count > 0)
+
+        self.frontiers = np.argwhere(frontier_mask)
+
+    def wavefront_distance_from_frontier(self, obstacles: list[tuple]):
+        h, w = self.size, self.size
+        dist_map = np.full((h, w), fill_value=np.inf, dtype=np.float32)
+
+        q = deque()
+        for x, y in self.frontiers:
+            dist_map[x, y] = 0
+            q.append((x, y))
+
+        directions = [(-1,0), (1,0), (0,-1), (0,1)]
+        while q:
+            x, y = q.popleft()
+            for dx, dy in directions:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < h and 0 <= ny < w:
+                    if (nx, ny) not in obstacles and dist_map[nx, ny] > dist_map[x, y] + 1:
+                        dist_map[nx, ny] = dist_map[x, y] + 1
+                        q.append((nx, ny))
+
+        return dist_map
 
     def execute_config(self, movements) -> list:
         new_positions = []
@@ -26,207 +122,253 @@ class BaselineEnv(GridWorldEnv):
 
         return new_positions
 
-    def compute_fitness(self, config: ndarray, obstacles: list[tuple]) -> float:
+    def compute_fitness(self, config: ndarray, obstacles: list[tuple], dist_map: ndarray[tuple[int, int]]) -> float:
         config_fitness = 0.0
 
         new_positions = self.execute_config(config)
 
-        arrays_list = [np.array(t) for t in new_positions]
+        if self.base_station:
+            arrays_list = [np.array((24, 0))]
+        else:
+            arrays_list = []
+
+        for t in new_positions:
+            arrays_list.append(np.array(t))
 
         self._build_adj_matrix(arrays_list)
         G = nx.from_numpy_array(self.adj_matrix)
         connected = nx.is_connected(G)
 
-        for i, position in enumerate(new_positions):
+        pos_counts = Counter(new_positions)
+        colliding_positions = {pos for pos, count in pos_counts.items() if count > 1}
+
+        for position in new_positions:
             utility = 0.0
 
             out_of_bounds_r = position[0] < 0 or position[0] >= self.size
             out_of_bounds_c = position[1] < 0 or position[1] >= self.size
             in_obstacle = position in obstacles
 
-            agent_collision = new_positions.count(position) > 1
+            agent_collision = position in colliding_positions
 
-            if out_of_bounds_r or out_of_bounds_c or in_obstacle or agent_collision or not connected:
-                utility += -3.0  # impossible
+            invalid_move = out_of_bounds_r or out_of_bounds_c or in_obstacle or agent_collision
+
+            if invalid_move or not connected:
+                utility += -999999.0
             else:
-                pass # TODO -- calculate manhattan distance to nearest unexplored cell
+                utility -= dist_map[position[0], position[1]]
 
             config_fitness += utility
 
         return config_fitness
 
-    def base_station(self):
-        k = 50
+    def get_max_config(self) -> ndarray:
+        k = 100
         obstacles = [(x, y) for x, y in self.obs_mat]
+        self.get_frontiers()
+        dist_map = self.wavefront_distance_from_frontier(obstacles)
 
         # generate a population
-        configurations = []
-        for i in range(k):
+        configurations = [np.full(self.num_agents, Actions.no_op.value)]
+        for i in range(1, k):
             # generate a config change
-            new_moves = np.random.default_rng().integers(low=0, high=5, size=5)
+            new_moves = np.random.default_rng().integers(low=0, high=5, size=self.num_agents)
             configurations.append(new_moves)
 
         # compute fitness; find maximum
         config_max = configurations[0]
-        max_fitness = self.compute_fitness(config_max, obstacles)
+        max_fitness = self.compute_fitness(config_max, obstacles, dist_map)
         for i in range(1, k):
-            config_fitness = self.compute_fitness(configurations[i], obstacles)
+            config_fitness = self.compute_fitness(configurations[i], obstacles, dist_map)
             if config_fitness > max_fitness:
-                config_max = configurations[k]
+                config_max = configurations[i]
                 max_fitness = config_fitness
 
-        self.execute_config(config_max)
+        return config_max
+
+    def execute_algorithm(self) -> dict[str, int]:
+        new_config = self.get_max_config()
+        if self.in_deadlock_recovery or self.detect_deadlock():
+            print("DEADLOCK!!!!")
+            pass # deadlock recovery
+
+        return {f'agent_{i}': int(val) for i, val in enumerate(new_config)}
 
     def reset(self, seed=None, options=None):
-        if seed is not None:
-            self.rng = np.random.default_rng(seed)
-
-        self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
-        self.visibility_mask = np.zeros((self.size, self.size), dtype=int)
-        self.agent_locations = np.zeros((self._num_agents, 2), dtype=int)
-        self.agents = copy(self.possible_agents)
-        self.timestep = 0
-
-        if not self.map_indices:
-            self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
-
-        mat_idx = self.map_indices.pop()
-        map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')
-        self.obs_mat = np.loadtxt(map_path, delimiter=' ', dtype='int')
-
-        # self.visited_tiles[self.obs_mat[:, 0], self.obs_mat[:, 1]] = 1.0  # count obstacle tiles as visited
-
-        self.max_coverage = self.size**2 - len(self.obs_mat)
-
-        self._generate_spawns()
-        self._build_adj_matrix()
-
-        if self.use_local_fov:
-            self._generate_local_obs()
-
-        observations = {}
-        infos = {}
-        for i, agent in enumerate(self.agents):
-            observations[agent] = self._generate_observation(i)
-            infos[agent] = {
-                "coverage": np.sum(self.visited_tiles > 0) / self.max_coverage * 100,
-                "step": self.timestep,
-                "connection_broken": False,
-            }
-
-        if self.render_mode == "human":
-            self._render_frame()
-
+        observations, infos = super().reset(seed, options)
+        self.hist_points = 0
+        self.in_deadlock_recovery = False
+        self.minx = np.zeros(self.num_agents, dtype=int)
+        self.maxx = np.zeros(self.num_agents, dtype=int)
+        self.miny = np.zeros(self.num_agents, dtype=int)
+        self.maxy = np.zeros(self.num_agents, dtype=int)
         return observations, infos
 
-    def step(self, actions):
-        """Execute one step for all agents"""
-        self.timestep += 1
+    def _render_frame(self):
+        """Render the current state of the environment"""
+        if self.window is None and self.render_mode == "human":
+            pygame.init()
+            pygame.display.init()
+            self.window = pygame.display.set_mode((self.window_size, self.window_size))
+            pygame.display.set_caption("Multi-Agent Area Coverage")
+        if self.clock is None and self.render_mode == "human":
+            self.clock = pygame.time.Clock()
 
-        rewards = {agent: 0.0 for agent in self.agents}
-        terminated = {agent: False for agent in self.agents}
-        truncated = {agent: False for agent in self.agents}
+        canvas = pygame.Surface((self.window_size, self.window_size))
+        canvas.fill((255, 255, 255))  # White background
 
-        previous_locations = self.agent_locations.copy()
+        # Calculate grid cell size
+        pix_square_size = self.window_size / self.size
 
-        occupied_positions = set([(x, y) for x, y in self.obs_mat])
-        for pos in previous_locations:
-            occupied_positions.add(tuple(pos))
+        # Draw visited cells
+        visited_indices = np.argwhere(self.visited_tiles > 0)
+        for idx in visited_indices:
+            pygame.draw.rect(
+                canvas,
+                (185, 235, 245),
+                pygame.Rect(
+                    pix_square_size * np.flip(idx), # flip coords for pygame rendering
+                    (pix_square_size, pix_square_size),
+                    ),
+            )
 
-        # Determine new positions
-        new_positions = []
-        collisions = {agent: False for agent in self.agents}
-        for i, agent in enumerate(self.agents):
-            action = actions[agent]
-            direction = self._action_to_direction[action]
-            proposed_position = np.clip(previous_locations[i] + direction, 0, self.size - 1)
+        # draw frontier tiles
+        for tile in self.frontiers:
+            pygame.draw.rect(
+                canvas,
+                (240, 240, 0), # Black for obstacles
+                pygame.Rect(
+                    pix_square_size * np.flip(tile),  # flip coords for pygame rendering
+                    (pix_square_size, pix_square_size),
+                    ),
+            )
 
-            # Check if proposed position is already claimed
-            pos_tuple = tuple(proposed_position)
-            if pos_tuple not in occupied_positions:
-                new_positions.append(proposed_position)
-                occupied_positions.remove(tuple(previous_locations[i]))
-                occupied_positions.add(pos_tuple)
-            else:
-                # If collision, don't move
-                new_positions.append(previous_locations[i])
-                collisions[agent] = True
+        for obstacle in self.obs_mat:
+            pygame.draw.rect(
+                canvas,
+                (0, 0, 0), # Black for obstacles
+                pygame.Rect(
+                    pix_square_size * np.flip(obstacle),  # flip coords for pygame rendering
+                    (pix_square_size, pix_square_size),
+                    ),
+            )
 
-        if self.base_station:
-            new_positions.append((self.size - 1,0))
-        self.agent_locations = np.array(new_positions)
+        if self.use_local_fov: # fog of war
+            indices = np.argwhere(self.visibility_mask == 0)
+            for idx in indices:
+                pygame.draw.rect(
+                    canvas,
+                    (192, 192, 192, 0.65),
+                    pygame.Rect(
+                        pix_square_size * np.flip(idx), # flip coords for pygame rendering
+                        (pix_square_size, pix_square_size),
+                        ),
+                )
 
-        self._build_adj_matrix()
+        # Draw grid lines
+        for x in range(self.size + 1):
+            pygame.draw.line(
+                canvas,
+                (192, 192, 192),  # Light gray
+                (0, pix_square_size * x),
+                (self.window_size, pix_square_size * x),
+                width=1,
+            )
+            pygame.draw.line(
+                canvas,
+                (192, 192, 192),  # Light gray
+                (pix_square_size * x, 0),
+                (pix_square_size * x, self.window_size),
+                width=1,
+            )
+
+        # Draw communication links between agents
         G = nx.from_numpy_array(self.adj_matrix)
-        connected = nx.is_connected(G)
+        for a, b in G.edges():
+            (ax, ay), (bx, by) = self.agent_locations[a], self.agent_locations[b]
+            pygame.draw.line(
+                canvas,
+                (255, 0, 0),  # Red for communication links
+                ((ay + 0.5) * pix_square_size, (ax + 0.5) * pix_square_size),
+                ((by + 0.5) * pix_square_size, (bx + 0.5) * pix_square_size),
+                width=2,
+            )
 
-        coverage = np.sum(self.visited_tiles > 0) / self.max_coverage
+        # Draw base station if it exists
+        if self.base_station:
+            station_offset = 1
 
-        step_info = {
-            "coverage": coverage * 100,
-            "timestep": self.timestep,
-            "connected": connected,
-            "collisions": collisions,
-            "graph": G,
-        }
+            top_left_x = (0 + 0.55) * pix_square_size - pix_square_size / 3
+            top_left_y = ((self.size - 1) + 0.55) * pix_square_size - pix_square_size / 3
 
-        # Calculate rewards
-        self._calc_rewards(rewards, step_info)
+            # Draw station
+            pygame.draw.rect(
+                canvas,
+                (105, 105, 105),
+                pygame.Rect(top_left_x, top_left_y, pix_square_size / 1.5, pix_square_size / 1.5)
+            )
 
-        if self.use_local_fov:
-            self._generate_local_obs()
+            # Draw agent ID (centered)
+            font = pygame.font.SysFont(None, int(pix_square_size * 0.7))
+            text = font.render("B", True, (0, 0, 0))
+            text_rect = text.get_rect(center=((0 + 0.5) * pix_square_size, ((self.size - 1) + 0.5) * pix_square_size))
+            canvas.blit(text, text_rect)
+        else:
+            station_offset = 0
 
-        observations = {}
-        infos = {}
-        for i, agent in enumerate(self.agents):
-            observations[agent] = self._generate_observation(i)
-            infos[agent] = {
-                "coverage": step_info['coverage'],
-                "step": step_info['timestep'],
-                "connection_broken": not step_info['connected'],
-            }
+        # Draw agents
+        for i, (x, y) in enumerate(self.agent_locations[:self._num_agents - station_offset]):
+            # Draw agent circle
+            pygame.draw.circle(
+                canvas,
+                self._get_agent_color(i),
+                ((y + 0.5) * pix_square_size, (x + 0.5) * pix_square_size), # swap coords for pygame rendering
+                pix_square_size / 3,
+                )
 
-        all_visited = np.sum(self.visited_tiles > 0) == self.max_coverage
-        if all_visited:
-            for agent in self.agents:
-                rewards[agent] += self.termination_bonus
-            terminated = {agent: True for agent in self.agents}
-            self.agents = []
+            # Draw agent ID
+            font = pygame.font.SysFont(None, int(pix_square_size / 2))
+            text = font.render(str(i), True, (255, 255, 255))
+            text_rect = text.get_rect(center=((y + 0.5) * pix_square_size, (x + 0.5) * pix_square_size))
+            canvas.blit(text, text_rect)
 
-        if self.timestep >= self.max_steps:
-            truncated = {agent: True for agent in self.agents}
-            self.agents = []
+        # Display coverage percentage
+        coverage = np.sum(self.visited_tiles > 0) / self.max_coverage * 100
+        font = pygame.font.SysFont(None, 30)
+        text = font.render(f"Coverage: {coverage:.1f}% | Step: {self.timestep}", True, (0, 150, 0))
+        canvas.blit(text, (10, 10))
 
         if self.render_mode == "human":
-            self._render_frame()
-
-        return observations, rewards, terminated, truncated, infos
+            self.window.blit(canvas, canvas.get_rect())
+            pygame.event.pump()
+            pygame.display.update()
+            self.clock.tick(self.metadata["render_fps"])
+        else:  # rgb_array
+            return np.transpose(
+                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
+            )
 
 if __name__ == "__main__":
-    reward_scheme = {
-        'new_tile_visited_connected': 4.0,
-        'old_tile_visited_connected': -0.1,
-        'new_tile_visited_disconnected': -0.5,
-        'old_tile_visited_disconnected': -0.8,
-        'obstacle_penalty': -1.0,
-        'terminated': 200
-    }
+    reward_scheme = environment.rewards.Default()
 
-    env = GridWorldEnv({
+    env = BaselineEnv({
         'render_mode': "human",
         'map_dir_path': '../obstacle-mats/testing',
-        'base_station': True,
+        'base_station': False,
         'fov': 25,
+        'num_agents': 6,
         'reward_scheme': reward_scheme
     })
 
     # unit test -- default env
     obs, _ = env.reset()
     episode_over = False
+    r = 0.0
     while not episode_over:
-        vals = np.random.default_rng().integers(low=0, high=5, size=5)
-        actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(vals)}
+        actions_dict = env.execute_algorithm()
         observations, rewards, terminated, truncated, infos = env.step(actions_dict)
+        r += sum(rewards.values())
+        print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(r, 2), end="")
         episode_over = all(terminated.values()) or all(truncated.values())
 
     # parallel_api_test(env, num_cycles=1_000_000)

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from ray.rllib.env import ParallelPettingZooEnv
 from ray.tune import register_env as register_ray_env
 
+from environment.envs.baseline import BaselineEnv
 from environment.envs.gridworld import GridWorldEnv
 from environment.rewards import *
 
@@ -27,7 +28,7 @@ def make_reward_scheme(module) -> RewardScheme:
 def make_env(env_config: dict):
     name = env_config.get('env_name', 'default')
     if name == "baseline":
-        pass
+        return BaselineEnv(env_config)
     else:
         return GridWorldEnv(env_config)
 
@@ -136,10 +137,15 @@ def save_obstacle_map(grid, filename):
 def gen_train_test_split(test_density=0.10):
     total_mats = 50
 
-    train_mat_path = os.path.join("experiments", "obstacle-mats", "training")
-    test_mat_path = os.path.join("experiments", "obstacle-mats", "testing")
+    train_mat_path = os.path.join("environment", "obstacle-mats", "training")
+    test_mat_path = os.path.join("environment", "obstacle-mats", "testing")
     for i in range(1, total_mats):
-        grid = generate_obstacles(obstacle_density=0.10)
+        if i < 20:
+            obstacle_density = 0.05
+        else:
+            obstacle_density = 0.10
+
+        grid = generate_obstacles(obstacle_density=obstacle_density)
         save_path = os.path.join(train_mat_path, f'mat{i}')
         save_obstacle_map(grid, save_path)
 
@@ -150,3 +156,4 @@ def gen_train_test_split(test_density=0.10):
 
 if __name__ == "__main__":
     gen_train_test_split(0.10)
+    print("Successfully generated maps")
