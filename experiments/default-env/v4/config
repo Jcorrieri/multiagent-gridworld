@@ -1,0 +1,32 @@
+environment:
+    env_name: gridworld
+    reward_scheme: default
+    base_station: False
+    fov: 4
+    max_steps: 1000
+    size: 25
+    num_agents: 5
+    cr: 10
+
+training:
+    module_file: cnn_2conv2linear.py
+    model_path: default-env/v2
+    num_episodes: 5000
+    target_reward: 600
+    gamma: 0.95
+    lr: 0.0001
+    grad_clip: 1.0
+    train_batch_size: 10000
+    num_epochs: 5
+    minibatch_size: 1000
+    l2_regularization: 0.0001
+    lambda_: 0.95
+    entropy_coeff_schedule: [[50_000_000, 0.01], [55_000_000, 0.01], [65_000_000, 0.005], [72_500_000, 0.0001]]
+
+testing:
+    num_episodes_per_map: 10
+    seed: 42
+    explore: False
+    render: True
+    model_path: default-env/v2
+    checkpoint: -1
