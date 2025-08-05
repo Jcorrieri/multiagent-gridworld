@@ -1,2 +1,0 @@
-Num_episodes_per_map,Num_Robots,Avg_Reward,Avg_Num_Disconnects,Avg_Connection_Percent,Communication_Ratio,Avg_Duration_Steps,Avg_Coverage_Percent
-10,5,148.22,71.98,92.8,12.0,1000.0,91.96

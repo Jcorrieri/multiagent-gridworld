@@ -22,7 +22,7 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
                 explore=explore
             )
             for agent in observations
-        } if model else {f'agent_{i}': int(val) for i, val in enumerate(test_env.get_max_config())}
+        } if model else test_env.execute_algorithm()
 
         observations, rewards, terminated, truncated, infos = test_env.step(actions)
 
@@ -71,7 +71,7 @@ def test(env_config, test_config) -> None:
     print(f"Reward Scheme: {env_config['reward_scheme']}")
     print("-"*50)
 
-    num_maps = 50
+    num_maps = 1
     num_episodes_per_map = test_config.get("num_episodes_per_map", 10)
     num_episodes = num_maps * num_episodes_per_map
 

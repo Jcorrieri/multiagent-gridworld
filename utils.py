@@ -137,8 +137,8 @@ def save_obstacle_map(grid, filename):
 def gen_train_test_split(test_density=0.10):
     total_mats = 50
 
-    train_mat_path = os.path.join("experiments", "obstacle-mats", "training")
-    test_mat_path = os.path.join("experiments", "obstacle-mats", "testing")
+    train_mat_path = os.path.join("environment", "obstacle-mats", "training")
+    test_mat_path = os.path.join("environment", "obstacle-mats", "testing")
     for i in range(1, total_mats):
         if i < 20:
             obstacle_density = 0.05
@@ -156,3 +156,4 @@ def gen_train_test_split(test_density=0.10):
 
 if __name__ == "__main__":
     gen_train_test_split(0.10)
+    print("Successfully generated maps")

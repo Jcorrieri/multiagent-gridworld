@@ -21,7 +21,57 @@ class BaselineEnv(GridWorldEnv):
 
     def __init__(self, env_params, **kwargs):
         super().__init__(env_params, **kwargs)
+        self.in_deadlock_recovery = False
         self.frontiers = []
+        self.s = kwargs.get("S", 20)
+        self.epsilon = kwargs.get("epsilon", 2)
+        self.hist_points = 0
+        self.minx = np.zeros(env_params['num_agents'], dtype=int)
+        self.maxx = np.zeros(env_params['num_agents'], dtype=int)
+        self.miny = np.zeros(env_params['num_agents'], dtype=int)
+        self.maxy = np.zeros(env_params['num_agents'], dtype=int)
+
+    def deadlock_recovery(self):
+        self.in_deadlock_recovery = True
+
+        rand = np.random.default_rng().integers(low=0, high=self.num_agents)
+        meeting_point = self.agent_locations[rand]
+
+        self.in_deadlock_recovery = False
+
+    def detect_deadlock(self) -> bool:
+        frontier_set = set(map(tuple, self.frontiers))
+        # check for every robot
+        for i, robot in enumerate(self.agents):
+            position = tuple(self.agent_locations[i])
+            # if a robot hits a frontier then reset
+            if position in frontier_set:
+                self.minx[i] = self.maxx[i] = position[0]
+                self.miny[i] = self.maxy[i] = position[1]
+                self.hist_points = 0
+                return False
+            else: # update the changes in x and y
+                if position[0] < self.minx[i]:
+                    self.minx[i] = position[0]
+                if position[1] < self.miny[i]:
+                    self.miny[i] = position[1]
+                if position[0] > self.maxx[i]:
+                    self.maxx[i] = position[0]
+                if position[1] > self.maxy[i]:
+                    self.maxy[i] = position[1]
+
+                # check whether last frontier visit is older than S
+                if self.hist_points > self.s:
+                    # if no progress is made
+                    if (self.maxx[i] - self.minx[i]) < self.epsilon and (self.maxy[i] - self.miny[i]) < self.epsilon:
+                        return True # deadlock
+                    else:
+                        # otherwise reset
+                        self.minx[i] = self.maxx[i] = position[0]
+                        self.miny[i] = self.maxy[i] = position[1]
+                        self.hist_points = 0
+        self.hist_points += 1 # synchronous movement means agents move all at once each step
+        return False
 
     def get_frontiers(self):
         # Define 4-connectivity kernel (Von Neumann neighborhood)
@@ -135,6 +185,24 @@ class BaselineEnv(GridWorldEnv):
                 max_fitness = config_fitness
 
         return config_max
+
+    def execute_algorithm(self) -> dict[str, int]:
+        new_config = self.get_max_config()
+        if self.in_deadlock_recovery or self.detect_deadlock():
+            print("DEADLOCK!!!!")
+            pass # deadlock recovery
+
+        return {f'agent_{i}': int(val) for i, val in enumerate(new_config)}
+
+    def reset(self, seed=None, options=None):
+        observations, infos = super().reset(seed, options)
+        self.hist_points = 0
+        self.in_deadlock_recovery = False
+        self.minx = np.zeros(self.num_agents, dtype=int)
+        self.maxx = np.zeros(self.num_agents, dtype=int)
+        self.miny = np.zeros(self.num_agents, dtype=int)
+        self.maxy = np.zeros(self.num_agents, dtype=int)
+        return observations, infos
 
     def _render_frame(self):
         """Render the current state of the environment"""
@@ -297,7 +365,7 @@ if __name__ == "__main__":
     episode_over = False
     r = 0.0
     while not episode_over:
-        actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(env.get_max_config())}
+        actions_dict = env.execute_algorithm()
         observations, rewards, terminated, truncated, infos = env.step(actions_dict)
         r += sum(rewards.values())
         print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(r, 2), end="")
