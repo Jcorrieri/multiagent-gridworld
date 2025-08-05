@@ -71,7 +71,7 @@ def test(env_config, test_config) -> None:
     print(f"Reward Scheme: {env_config['reward_scheme']}")
     print("-"*50)
 
-    num_maps = 1
+    num_maps = 50
     num_episodes_per_map = test_config.get("num_episodes_per_map", 10)
     num_episodes = num_maps * num_episodes_per_map
 

@@ -9,6 +9,7 @@ from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
 from pettingzoo import ParallelEnv
 
+from test import build_algo
 from utils import make_env, plot_metrics
 from models.rl_wrapper import CustomTorchModelV2
 
@@ -140,7 +141,16 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
 
     print("\nBuilding Ray Trainer...\n")
 
+    model_path = training_config.get("restore_from_model", None)
+    if model_path:
+        training_config.pop("restore_from_model")
+
     trainer = build_config(env_config, training_config)
+
+    if model_path:
+        model_path = os.path.join("experiments", model_path, "saved")
+        model_path = os.path.abspath(model_path)
+        trainer.restore(model_path)
 
     print("-"*100 + "\n\nBeginning Training...\n")
 
@@ -173,7 +183,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
             index = i // ckpt_interval
             full_ckpt_dir = os.path.join(ckpt_dir, str(index))
             os.makedirs(full_ckpt_dir, exist_ok=False)
-            trainer.save_checkpoint(ckpt_dir)
+            trainer.save_checkpoint(full_ckpt_dir)
 
         # Stop training if the average reward reaches target for 20 consecutive iterations
         if episode_reward_mean >= target_rew:
