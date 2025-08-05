@@ -30,7 +30,7 @@ def build_config(env_config: dict, training_config: dict):
     config = get_default_config(
         env_config,
         ppo_params,
-        training_config.get("module_file", "cnn_1conv3linear.py"),
+        training_config.get("module_file", "cnn_2conv2linear.py"),
         dummy_env
     )
 
@@ -93,15 +93,11 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
     return config
 
 def create_model_directories(env_config: dict, args: argparse.Namespace):
-    experiment_dir = os.path.abspath("experiments")
+    env_name = env_config.get('env_name', "gridworld")
+    experiment_dir = os.path.abspath(os.path.join("experiments", env_name))
 
-    if env_config['env_name'] == 'gridworld':
-        if env_config['base_station']:
-            experiment_dir = os.path.join(experiment_dir, "base-station")
-        else:
-            experiment_dir = os.path.join(experiment_dir, "default-env")
-    else:
-        raise FileNotFoundError("Please provide a valid environment name (i.e. gridworld)")
+    if env_name != 'gridworld' and env_name != 'baseline':
+        raise FileNotFoundError("Please provide a valid environment name")
 
     model_dir = os.path.join(experiment_dir, 'v0')
     i = 1
@@ -141,20 +137,20 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
 
     print("\nBuilding Ray Trainer...\n")
 
-    model_path = training_config.get("restore_from_model", None)
-    if model_path:
+    model_to_restore = training_config.get("restore_from_model", None)
+    if model_to_restore:
         training_config.pop("restore_from_model")
 
     trainer = build_config(env_config, training_config)
 
-    if model_path:
-        model_path = os.path.join("experiments", model_path, "saved")
-        model_path = os.path.abspath(model_path)
-        trainer.restore(model_path)
+    if model_to_restore:
+        model_to_restore = os.path.join("experiments", "gridworld", model_to_restore, "saved")
+        model_to_restore = os.path.abspath(model_to_restore)
+        trainer.restore(model_to_restore)
 
     print("-"*100 + "\n\nBeginning Training...\n")
 
-    max_rew_epi_count = 0
+    max_rew_iter_count = 0
     ckpt_interval = 200
     target_rew = training_config["target_reward"]
     best_score = -np.inf
@@ -189,12 +185,12 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
         if episode_reward_mean >= target_rew:
             if episode_reward_mean > best_score:
                 best_score = episode_reward_mean
-            max_rew_epi_count += 1
-            if max_rew_epi_count >= 20:
+            max_rew_iter_count += 1
+            if max_rew_iter_count >= 20:
                 print("Stopping training - reached target reward.")
                 break
         else:
-            max_rew_epi_count = 0
+            max_rew_iter_count = 0
 
     print(f"\nSaving to \"{save_dir}\"")
     trainer.save(save_dir)

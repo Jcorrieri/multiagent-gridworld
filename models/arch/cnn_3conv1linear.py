@@ -14,10 +14,10 @@ class ActorCriticCNNModel(nn.Module):
             nn.Conv2d(c, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
 
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=1),
             nn.ReLU(),
 
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 64, kernel_size=7, stride=1, padding=1),
             nn.ReLU(),
             nn.Flatten()
         )
@@ -28,15 +28,15 @@ class ActorCriticCNNModel(nn.Module):
             flattened_size = out.flatten(1).size(1)
 
         self.actor_head = nn.Sequential(
-            nn.Linear(flattened_size, 256),
+            nn.Linear(flattened_size, 64),
             nn.ReLU(),
-            nn.Linear(256, num_outputs)
+            nn.Linear(64, num_outputs)
         )
 
         self.critic_head = nn.Sequential(
-            nn.Linear(flattened_size, 256),
+            nn.Linear(flattened_size, 64),
             nn.ReLU(),
-            nn.Linear(256, 1)
+            nn.Linear(64, 1)
         )
 
     def forward(self, obs):

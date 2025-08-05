@@ -10,7 +10,7 @@ environment:
 
 training:
     module_file: cnn_2conv2linear.py
-    model_path: default-env/v2
+    restore_from_model: v2
     num_episodes: 5000
     target_reward: 600
     gamma: 0.95

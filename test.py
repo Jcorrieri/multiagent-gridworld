@@ -36,21 +36,21 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
     return total_reward, steps, num_breaks, coverage
 
 def build_algo(test_config) -> (Algorithm, str):
-    model_dir = test_config.get("model_path", "default-env/v0")
-    checkpoint_dir = os.path.join("experiments", model_dir)
-    if test_config.get("checkpoint", -1) >= 0:
-        checkpoint_dir = os.path.join(checkpoint_dir, f"ckpt/{test_config['checkpoint']}")
+    model = test_config.get('model_version', "v0")
+    checkpoint_dir = os.path.join("experiments", "gridworld", model)
+    if test_config.get('checkpoint', -1) >= 0:
+        checkpoint_dir = os.path.join(checkpoint_dir, "ckpt", test_config['checkpoint'])
     else:
         checkpoint_dir = os.path.join(checkpoint_dir, "saved")
 
     checkpoint_dir = os.path.abspath(checkpoint_dir)
     if not os.path.exists(checkpoint_dir):
-        raise FileNotFoundError("Model path does not exist, please check \'model_path\' in the config file.")
+        raise FileNotFoundError("Model does not exist, please check \'model_version\' in the config file.")
 
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
     tester = Algorithm.from_checkpoint(checkpoint_dir)
 
-    return tester, model_dir
+    return tester, model
 
 
 def test(env_config, test_config) -> None:
@@ -114,6 +114,7 @@ def test(env_config, test_config) -> None:
         csv_data = {
             "Num_episodes_per_map": num_episodes_per_map,
             "Num_Robots": [env_config["num_agents"]],
+            "Base_Station": [env_config["base_station"]],
             "Avg_Reward": [avg_reward],
             "Avg_Num_Disconnects": [avg_breaks],
             "Avg_Connection_Percent": [percent_connected],
