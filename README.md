@@ -16,11 +16,9 @@ pip install ray[tune]==2.44.1 PettingZoo>=1.22.3 dm_tree scipy pygame matplotlib
 
 ## Usage:
 
-Everything is configured through a central configuration file located under ```config/```
+Everything is configured through a central configuration file located under ```config/default```
 
 ### Training Models
-
-Run ```python main.py```
 
 - Select a neural network architecture from ```models/arch/``` using the ```module_file``` parameter.
   - You can add your own architecture(s) as long as it mimics the ActorCriticCNNModel class.
@@ -29,14 +27,16 @@ Run ```python main.py```
 - Model checkpoints will be saved every 200 iterations at ```...model_path/ckpt/i/```, where ```i``` is the checkpoint number.
 - After training, the model will be saved at ```...model_path/saved/``` and the training metrics at ```...model_path/train-metrics/```.
 
-### Testing Models
+When everything is set as you prefer in the config file, run ```python main.py```. You can view live metrics by running ```tensorboard --logdir=~\ray_results``` and selecting the latest run.
 
-Run ```python main.py --test```
+### Testing Models
 
 - Select the model to test by specifying its relative path (i.e. ```default-env/v1```)
 - Specify a checkpoint number greater than -1 to test a checkpoint from ```...model_path/ckpt/<i>```.
 - Set ```render: True``` to display the environments during testing (will slow down evaluation)
 - A csv file with various results will be saved at ```...model_path/test-results/```
+
+Run ```python main.py --test``` to begin testing.
 
 ### Baseline Implementation
 
