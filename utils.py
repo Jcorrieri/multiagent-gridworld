@@ -18,7 +18,9 @@ def register_envs():
     register_ray_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
 
 def make_reward_scheme(module) -> RewardScheme:
-    if module == "explorer_maintainer":
+    if module == "coverage":
+        return Coverage()
+    elif module == "explorer_maintainer":
         return ExplorerMaintainer()
     elif module == "components":
         return Components()

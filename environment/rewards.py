@@ -14,13 +14,37 @@ class Default(RewardScheme):
     def calculate_rewards(self, agent_rewards, step_info, env):
         connected = step_info["connected"]
         collisions = step_info["collisions"]
+
+        exploration_reward = 0.2
+        disconnection_penalty = -0.5
+        obstacle_penalty = -0.1
+        timestep_penalty = -0.01
+
+        for agent in env.agents:
+            if collisions[agent]:
+                agent_rewards[agent] += obstacle_penalty
+
+            if not connected:
+                agent_rewards[agent] += disconnection_penalty
+
+            agent_loc = env.agent_locations[agent]
+            if env.visited_tiles[agent_loc[0], agent_loc[1]] == 0:  # individual
+                agent_rewards[agent] += exploration_reward
+
+            agent_rewards[agent] += timestep_penalty
+
+
+class Coverage(RewardScheme):
+    def calculate_rewards(self, agent_rewards, step_info, env):
+        connected = step_info["connected"]
+        collisions = step_info["collisions"]
         coverage = (step_info['coverage'] / 100)
         prev_coverage = (step_info['prev_coverage'] / 100)
 
         exploration_reward = (coverage - prev_coverage) * 100
         disconnection_penalty = -0.5
         obstacle_penalty = -0.1
-        timestep_penalty = -0.01
+        timestep_penalty = -0.05
 
         for agent in env.agents:
             if collisions[agent]:
@@ -44,8 +68,8 @@ class ExplorerMaintainer(RewardScheme):
         explorers = []
         maintainers = []
 
-        for i, agent in enumerate(env.agents):
-            current_pos = env.agent_locations[i]
+        for agent in env.agents:
+            current_pos = env.agent_locations[agent]
 
             if step_info['collisions'][agent]:
                 agent_rewards[agent] += obstacle_penalty
@@ -105,7 +129,7 @@ class Components(RewardScheme):
             disconnect_penalty = (total_agents - num_agents) * missing_teammate_penalty
 
             for agent_idx in component:
-                if f"agent_{agent_idx}" not in env.agents: # base-station
+                if f"agent_{agent_idx}" not in env.agents:  # base-station
                     continue
 
                 # All agents get the disconnect penalty

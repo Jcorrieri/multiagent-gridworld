@@ -254,7 +254,7 @@ class BaselineEnv(GridWorldEnv):
             )
 
         if self.use_local_fov: # fog of war
-            indices = np.argwhere(self.visibility_mask == 0)
+            indices = np.argwhere(self.visible_tiles == 0)
             for idx in indices:
                 pygame.draw.rect(
                     canvas,

@@ -32,6 +32,8 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
         if infos['agent_0']['connection_broken']:
             num_breaks += 1
 
+        print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(total_reward, 2), end="")
+
         episode_over = all(terminated.values()) or all(truncated.values())
     return total_reward, steps, num_breaks, coverage
 
@@ -39,7 +41,7 @@ def build_algo(test_config) -> (Algorithm, str):
     model = test_config.get('model_version', "v0")
     checkpoint_dir = os.path.join("experiments", "gridworld", model)
     if test_config.get('checkpoint', -1) >= 0:
-        checkpoint_dir = os.path.join(checkpoint_dir, "ckpt", test_config['checkpoint'])
+        checkpoint_dir = os.path.join(checkpoint_dir, "ckpt", str(test_config['checkpoint']))
     else:
         checkpoint_dir = os.path.join(checkpoint_dir, "saved")
 
