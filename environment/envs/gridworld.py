@@ -149,6 +149,7 @@ class GridWorldEnv(ParallelEnv):
 
     def locations_to_ndarray_list(self) -> list[np.ndarray[int, int]]:
         locations_to_ndarray_list = []
+
         for i in range(self._num_agents):
             location = np.array(self.agent_locations[f"agent_{i}"])
             locations_to_ndarray_list.append(location)
@@ -193,7 +194,7 @@ class GridWorldEnv(ParallelEnv):
         if self.use_local_fov:
             self.update_visibility()
         else:
-            self.visited_tiles[self.obs_mat] = 1.0
+            self.visited_tiles[self.obs_mat == 1] = 1.0
 
         observations = {}
         infos = {}
@@ -285,7 +286,7 @@ class GridWorldEnv(ParallelEnv):
                 "connection_broken": not step_info['connected'],
             }
 
-        if visited_count == self.max_coverage:
+        if np.sum(self.visited_tiles > 0) == self.max_coverage:
             for agent in self.agents:
                 rewards[agent] += self.reward_scheme.get_terminated()
             terminated = {agent: True for agent in self.agents}
@@ -452,7 +453,7 @@ if __name__ == "__main__":
         'render_mode': "human",
         'map_dir_path': '../obstacle-mats/testing',
         'base_station': False,
-        'fov': 4,
+        'fov': 25,
         'num_agents': 5,
         'reward_scheme': reward_scheme
     })

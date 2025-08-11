@@ -35,15 +35,15 @@ class BaselineEnv(GridWorldEnv):
         self.in_deadlock_recovery = True
 
         rand = np.random.default_rng().integers(low=0, high=self.num_agents)
-        meeting_point = self.agent_locations[rand]
+        meeting_point = self.agent_locations[f"agent_{rand}"]
 
         self.in_deadlock_recovery = False
 
     def detect_deadlock(self) -> bool:
         frontier_set = set(map(tuple, self.frontiers))
         # check for every robot
-        for i, robot in enumerate(self.agents):
-            position = tuple(self.agent_locations[i])
+        for i, agent in enumerate(self.agents):
+            position = self.agent_locations[agent]
             # if a robot hits a frontier then reset
             if position in frontier_set:
                 self.minx[i] = self.maxx[i] = position[0]
@@ -79,8 +79,7 @@ class BaselineEnv(GridWorldEnv):
                            [1, 0, 1],
                            [0, 1, 0]])
 
-        obstacle_mask = np.zeros_like(self.visited_tiles, dtype=bool)
-        obstacle_mask[self.obs_mat[:, 0], self.obs_mat[:, 1]] = True
+        obstacle_mask = self.obs_mat == 1
 
         visited = (self.visited_tiles == 1) & (~obstacle_mask)
 
@@ -90,7 +89,7 @@ class BaselineEnv(GridWorldEnv):
 
         self.frontiers = np.argwhere(frontier_mask)
 
-    def wavefront_distance_from_frontier(self, obstacles: list[tuple]):
+    def wavefront_distance_from_frontier(self):
         h, w = self.size, self.size
         dist_map = np.full((h, w), fill_value=np.inf, dtype=np.float32)
 
@@ -105,7 +104,7 @@ class BaselineEnv(GridWorldEnv):
             for dx, dy in directions:
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < h and 0 <= ny < w:
-                    if (nx, ny) not in obstacles and dist_map[nx, ny] > dist_map[x, y] + 1:
+                    if self.obs_mat[nx, ny] == 0 and dist_map[nx, ny] > dist_map[x, y] + 1:
                         dist_map[nx, ny] = dist_map[x, y] + 1
                         q.append((nx, ny))
 
@@ -116,26 +115,28 @@ class BaselineEnv(GridWorldEnv):
         for i, agent in enumerate(self.agents):
             action = movements[i]
             direction = self._action_to_direction[action]
-            current_position = self.agent_locations[i]
-            proposed_position = tuple(current_position + direction)
+            (curr_x, curr_y) = self.agent_locations[agent]
+            proposed_position = (curr_x + direction[0], curr_y + direction[1])
+
             new_positions.append(proposed_position)
 
         return new_positions
 
-    def compute_fitness(self, config: ndarray, obstacles: list[tuple], dist_map: ndarray[tuple[int, int]]) -> float:
+    def compute_fitness(self, config: ndarray, dist_map: ndarray[tuple[int, int]]) -> float:
         config_fitness = 0.0
 
         new_positions = self.execute_config(config)
 
-        if self.base_station:
-            arrays_list = [np.array((24, 0))]
-        else:
-            arrays_list = []
+        arrays_list = []
 
         for t in new_positions:
-            arrays_list.append(np.array(t))
+            arrays_list.append(t)
 
-        self._build_adj_matrix(arrays_list)
+        if self.base_station:
+            arrays_list = [(self.size - 1, 0)]
+
+        np_arraylist = list(map(np.array, arrays_list))
+        self._build_adj_matrix(np_arraylist)
         G = nx.from_numpy_array(self.adj_matrix)
         connected = nx.is_connected(G)
 
@@ -147,13 +148,17 @@ class BaselineEnv(GridWorldEnv):
 
             out_of_bounds_r = position[0] < 0 or position[0] >= self.size
             out_of_bounds_c = position[1] < 0 or position[1] >= self.size
-            in_obstacle = position in obstacles
+            out_of_bounds = out_of_bounds_r or out_of_bounds_c
+
+            in_obstacle = True
+            if not out_of_bounds:
+                in_obstacle = self.obs_mat[position[0], position[1]] == 1
 
             agent_collision = position in colliding_positions
 
-            invalid_move = out_of_bounds_r or out_of_bounds_c or in_obstacle or agent_collision
+            invalid_move = out_of_bounds or in_obstacle or agent_collision or not connected
 
-            if invalid_move or not connected:
+            if invalid_move:
                 utility += -999999.0
             else:
                 utility -= dist_map[position[0], position[1]]
@@ -163,10 +168,9 @@ class BaselineEnv(GridWorldEnv):
         return config_fitness
 
     def get_max_config(self) -> ndarray:
-        k = 100
-        obstacles = [(x, y) for x, y in self.obs_mat]
+        k = 50
         self.get_frontiers()
-        dist_map = self.wavefront_distance_from_frontier(obstacles)
+        dist_map = self.wavefront_distance_from_frontier()
 
         # generate a population
         configurations = [np.full(self.num_agents, Actions.no_op.value)]
@@ -177,9 +181,9 @@ class BaselineEnv(GridWorldEnv):
 
         # compute fitness; find maximum
         config_max = configurations[0]
-        max_fitness = self.compute_fitness(config_max, obstacles, dist_map)
+        max_fitness = self.compute_fitness(config_max, dist_map)
         for i in range(1, k):
-            config_fitness = self.compute_fitness(configurations[i], obstacles, dist_map)
+            config_fitness = self.compute_fitness(configurations[i], dist_map)
             if config_fitness > max_fitness:
                 config_max = configurations[i]
                 max_fitness = config_fitness
@@ -202,6 +206,7 @@ class BaselineEnv(GridWorldEnv):
         self.maxx = np.zeros(self.num_agents, dtype=int)
         self.miny = np.zeros(self.num_agents, dtype=int)
         self.maxy = np.zeros(self.num_agents, dtype=int)
+        self.frontiers = []
         return observations, infos
 
     def _render_frame(self):
@@ -243,7 +248,7 @@ class BaselineEnv(GridWorldEnv):
                     ),
             )
 
-        for obstacle in self.obs_mat:
+        for obstacle in np.argwhere(self.obs_mat == 1):
             pygame.draw.rect(
                 canvas,
                 (0, 0, 0), # Black for obstacles
@@ -285,7 +290,14 @@ class BaselineEnv(GridWorldEnv):
         # Draw communication links between agents
         G = nx.from_numpy_array(self.adj_matrix)
         for a, b in G.edges():
-            (ax, ay), (bx, by) = self.agent_locations[a], self.agent_locations[b]
+            a_loc_key = f"agent_{a}"
+            b_loc_key = f"agent_{b}"
+            if a == self._num_agents:
+                a_loc_key = "base_station"
+            elif b == self._num_agents:
+                b_loc_key = "base_station"
+
+            (ax, ay), (bx, by) = self.agent_locations[a_loc_key], self.agent_locations[b_loc_key]
             pygame.draw.line(
                 canvas,
                 (255, 0, 0),  # Red for communication links
@@ -294,43 +306,28 @@ class BaselineEnv(GridWorldEnv):
                 width=2,
             )
 
-        # Draw base station if it exists
-        if self.base_station:
-            station_offset = 1
+        # Draw agents and base station if enabled
+        for i, (agent, (x, y)) in enumerate(self.agent_locations.items()):
+            if agent == "base_station":
+                color = (85, 85, 85)
+                text = "B"
+            else:
+                color = self._get_agent_color(i)
+                text = str(i)
 
-            top_left_x = (0 + 0.55) * pix_square_size - pix_square_size / 3
-            top_left_y = ((self.size - 1) + 0.55) * pix_square_size - pix_square_size / 3
-
-            # Draw station
-            pygame.draw.rect(
-                canvas,
-                (105, 105, 105),
-                pygame.Rect(top_left_x, top_left_y, pix_square_size / 1.5, pix_square_size / 1.5)
-            )
-
-            # Draw agent ID (centered)
-            font = pygame.font.SysFont(None, int(pix_square_size * 0.7))
-            text = font.render("B", True, (0, 0, 0))
-            text_rect = text.get_rect(center=((0 + 0.5) * pix_square_size, ((self.size - 1) + 0.5) * pix_square_size))
-            canvas.blit(text, text_rect)
-        else:
-            station_offset = 0
-
-        # Draw agents
-        for i, (x, y) in enumerate(self.agent_locations[:self._num_agents - station_offset]):
             # Draw agent circle
             pygame.draw.circle(
                 canvas,
-                self._get_agent_color(i),
+                color,
                 ((y + 0.5) * pix_square_size, (x + 0.5) * pix_square_size), # swap coords for pygame rendering
                 pix_square_size / 3,
                 )
 
             # Draw agent ID
             font = pygame.font.SysFont(None, int(pix_square_size / 2))
-            text = font.render(str(i), True, (255, 255, 255))
-            text_rect = text.get_rect(center=((y + 0.5) * pix_square_size, (x + 0.5) * pix_square_size))
-            canvas.blit(text, text_rect)
+            text_content = font.render(text, True, (255, 255, 255))
+            text_rect = text_content.get_rect(center=((y + 0.5) * pix_square_size, (x + 0.5) * pix_square_size))
+            canvas.blit(text_content, text_rect)
 
         # Display coverage percentage
         coverage = np.sum(self.visited_tiles > 0) / self.max_coverage * 100
