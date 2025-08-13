@@ -21,6 +21,8 @@ class BaselineEnv(GridWorldEnv):
 
     def __init__(self, env_params, **kwargs):
         super().__init__(env_params, **kwargs)
+        self.meeting_point = None
+        self.recovery_cost_map = None
         self.in_deadlock_recovery = False
         self.frontiers = []
         self.s = kwargs.get("S", 20)
@@ -33,11 +35,41 @@ class BaselineEnv(GridWorldEnv):
 
     def deadlock_recovery(self):
         self.in_deadlock_recovery = True
+        
+        meet_radius = self.num_agents * 1.0
+        num_neighbors = 4
+        within_meet = {agent: False for agent in self.agents}
 
-        rand = np.random.default_rng().integers(low=0, high=self.num_agents)
-        meeting_point = self.agent_locations[f"agent_{rand}"]
+        moves = []
 
-        self.in_deadlock_recovery = False
+        for agent in self.agents:
+            location = np.array(self.agent_locations[agent])
+            if np.linalg.norm(location - self.meeting_point) < meet_radius:
+                within_meet[agent] = True
+
+            best_move = Actions.no_op.value
+            min_cost = 999999999
+            for i in range(num_neighbors):
+                direction = self._action_to_direction[i]
+                (x, y) = location + direction
+
+                out_of_bounds_r = x < 0 or x >= self.size
+                out_of_bounds_c = y < 0 or y >= self.size
+                out_of_bounds = out_of_bounds_r or out_of_bounds_c
+
+                if out_of_bounds:
+                    continue
+
+                cost = self.recovery_cost_map[x, y]
+                if cost < min_cost:
+                    min_cost = cost
+                    best_move = i
+            moves.append(best_move)
+
+        if all(within_meet.values()):
+            self.in_deadlock_recovery = False
+
+        return moves
 
     def detect_deadlock(self) -> bool:
         frontier_set = set(map(tuple, self.frontiers))
@@ -89,12 +121,12 @@ class BaselineEnv(GridWorldEnv):
 
         self.frontiers = np.argwhere(frontier_mask)
 
-    def wavefront_distance_from_frontier(self):
+    def wavefront_distance_from_frontier(self, points: list[ndarray]):
         h, w = self.size, self.size
         dist_map = np.full((h, w), fill_value=np.inf, dtype=np.float32)
 
         q = deque()
-        for x, y in self.frontiers:
+        for (x, y) in points:
             dist_map[x, y] = 0
             q.append((x, y))
 
@@ -170,7 +202,7 @@ class BaselineEnv(GridWorldEnv):
     def get_max_config(self) -> ndarray:
         k = 50
         self.get_frontiers()
-        dist_map = self.wavefront_distance_from_frontier()
+        dist_map = self.wavefront_distance_from_frontier(self.frontiers)
 
         # generate a population
         configurations = [np.full(self.num_agents, Actions.no_op.value)]
@@ -191,10 +223,17 @@ class BaselineEnv(GridWorldEnv):
         return config_max
 
     def execute_algorithm(self) -> dict[str, int]:
-        new_config = self.get_max_config()
-        if self.in_deadlock_recovery or self.detect_deadlock():
+        if self.in_deadlock_recovery:
             print("DEADLOCK!!!!")
-            pass # deadlock recovery
+            new_config = self.deadlock_recovery()
+        elif self.detect_deadlock():
+            rand = np.random.default_rng().integers(low=0, high=self.num_agents)
+            self.meeting_point = np.array(self.agent_locations[f"agent_{rand}"])
+            self.recovery_cost_map = self.wavefront_distance_from_frontier([self.meeting_point])
+
+            new_config = self.deadlock_recovery()
+        else:
+            new_config = self.get_max_config()
 
         return {f'agent_{i}': int(val) for i, val in enumerate(new_config)}
 

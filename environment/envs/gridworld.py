@@ -237,7 +237,7 @@ class GridWorldEnv(ParallelEnv):
 
             row, col = proposed_position
             out_of_bounds = row < 0 or row >= self.size or col < 0 or col >= self.size
-            valid_move = action == Actions.no_op or (not out_of_bounds and proposed_position not in occupied_positions)
+            valid_move = action == Actions.no_op.value or (not out_of_bounds and proposed_position not in occupied_positions)
 
             if valid_move:
                 visited_count += self.visited_tiles[row, col]
