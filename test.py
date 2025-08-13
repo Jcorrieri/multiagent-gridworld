@@ -32,7 +32,7 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
         if infos['agent_0']['connection_broken']:
             num_breaks += 1
 
-        print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(total_reward, 2), end="")
+        # print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(total_reward, 2), end="")
 
         episode_over = all(terminated.values()) or all(truncated.values())
     return total_reward, steps, num_breaks, coverage
