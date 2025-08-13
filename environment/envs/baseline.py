@@ -224,9 +224,9 @@ class BaselineEnv(GridWorldEnv):
 
     def execute_algorithm(self) -> dict[str, int]:
         if self.in_deadlock_recovery:
-            print("DEADLOCK!!!!")
             new_config = self.deadlock_recovery()
         elif self.detect_deadlock():
+            print("Deadlock detected, initiating deadlock recovery...")
             rand = np.random.default_rng().integers(low=0, high=self.num_agents)
             self.meeting_point = np.array(self.agent_locations[f"agent_{rand}"])
             self.recovery_cost_map = self.wavefront_distance_from_frontier([self.meeting_point])
