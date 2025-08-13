@@ -1,9 +1,9 @@
 environment:
-    env_name: baseline
+    env_name: gridworld
     reward_scheme: coverage
     base_station: False
     fov: 4
-    max_steps: 1000
+    max_steps: 1200
     size: 25
     num_agents: 5
     cr: 10
@@ -11,7 +11,7 @@ environment:
 training:
     module_file: cnn_2conv1linear.py
     num_episodes: 25000
-    target_reward: 360
+    target_reward: 650
     gamma: 0.995
     lr: 0.0001
     grad_clip: 1.0
@@ -24,7 +24,7 @@ training:
 
 testing:
     num_episodes_per_map: 10
-    seed: 12
+    seed: 42
     explore: True
     render: True
     model_version: v2

@@ -385,14 +385,14 @@ class BaselineEnv(GridWorldEnv):
             )
 
 if __name__ == "__main__":
-    reward_scheme = environment.rewards.Default()
+    reward_scheme = environment.rewards.Coverage()
 
     env = BaselineEnv({
         'render_mode': "human",
         'map_dir_path': '../obstacle-mats/testing',
         'base_station': False,
         'fov': 25,
-        'num_agents': 6,
+        'num_agents': 5,
         'reward_scheme': reward_scheme
     })
 

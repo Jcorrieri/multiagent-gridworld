@@ -240,7 +240,8 @@ class GridWorldEnv(ParallelEnv):
             valid_move = action == Actions.no_op.value or (not out_of_bounds and proposed_position not in occupied_positions)
 
             if valid_move:
-                visited_count += self.visited_tiles[row, col]
+                if self.visited_tiles[row, col] == 0:
+                    visited_count += 1
 
                 old_position = self.agent_locations[agent]
                 occupied_positions.remove(old_position)
@@ -286,7 +287,7 @@ class GridWorldEnv(ParallelEnv):
                 "connection_broken": not step_info['connected'],
             }
 
-        if np.sum(self.visited_tiles > 0) == self.max_coverage:
+        if visited_count == self.max_coverage:
             for agent in self.agents:
                 rewards[agent] += self.reward_scheme.get_terminated()
             terminated = {agent: True for agent in self.agents}
@@ -447,7 +448,7 @@ class GridWorldEnv(ParallelEnv):
             pygame.quit()
 
 if __name__ == "__main__":
-    reward_scheme = environment.rewards.Default()
+    reward_scheme = environment.rewards.Coverage()
 
     env = GridWorldEnv({
         'render_mode': "human",
