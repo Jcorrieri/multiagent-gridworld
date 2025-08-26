@@ -22,7 +22,7 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
                 explore=explore
             )
             for agent in observations
-        } if model else test_env.execute_algorithm()
+        } if model else test_env.execute_algorithm()  # for baseline env
 
         observations, rewards, terminated, truncated, infos = test_env.step(actions)
 
@@ -37,7 +37,7 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
         episode_over = all(terminated.values()) or all(truncated.values())
     return total_reward, steps, num_breaks, coverage
 
-def build_algo(test_config) -> (Algorithm, str):
+def build_algo(test_config) -> tuple[Algorithm, str]:
     model = test_config.get('model_version', "v0")
     checkpoint_dir = os.path.join("experiments", "gridworld", model)
     if test_config.get('checkpoint', -1) >= 0:

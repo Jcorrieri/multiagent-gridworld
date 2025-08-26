@@ -6,7 +6,7 @@ class RewardScheme:
         raise NotImplementedError
 
     def get_terminated(self):
-        termination_bonus = 50
+        termination_bonus = 500
         return termination_bonus
 
 
@@ -40,8 +40,9 @@ class Coverage(RewardScheme):
         collisions = step_info["collisions"]
         coverage = (step_info['coverage'] / 100)
         prev_coverage = (step_info['prev_coverage'] / 100)
+        coverage_multiplier = 1.0 + (coverage ** 2)  # added coverage multiplier [1.0, 2.0]
 
-        exploration_reward = (coverage - prev_coverage) * 100
+        exploration_reward = (coverage - prev_coverage) * 100 * coverage_multiplier  # added coverage multiplier bonus
         disconnection_penalty = -0.5
         obstacle_penalty = -0.1
         timestep_penalty = -0.01

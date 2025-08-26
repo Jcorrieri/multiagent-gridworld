@@ -72,7 +72,8 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
         .env_runners(
             num_env_runners=6,
             num_envs_per_env_runner=1,
-            rollout_fragment_length="auto"
+            rollout_fragment_length="auto",
+            sample_timeout_s=120
         )
         .resources(
             num_gpus=1
@@ -151,7 +152,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*100 + "\n\nBeginning Training...\n")
 
     max_rew_iter_count = 0
-    ckpt_interval = 200
+    ckpt_interval = 500
     target_rew = training_config["target_reward"]
     best_score = -np.inf
 
@@ -175,13 +176,14 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
 
         data.append([episode_reward_mean, episode_len_mean, episodes_elapsed])
 
+        # save checkpoint
         if i != 0 and i % ckpt_interval == 0:
             index = i // ckpt_interval
             full_ckpt_dir = os.path.join(ckpt_dir, str(index))
-            os.makedirs(full_ckpt_dir, exist_ok=False)
+            os.makedirs(full_ckpt_dir, exist_ok=True)
             trainer.save_checkpoint(full_ckpt_dir)
 
-        # Stop training if the average reward reaches target for 20 consecutive iterations
+        # stop training if the average reward reaches target for 20 consecutive iterations
         if episode_reward_mean >= target_rew:
             if episode_reward_mean > best_score:
                 best_score = episode_reward_mean

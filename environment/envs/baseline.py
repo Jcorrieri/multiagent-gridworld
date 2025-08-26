@@ -165,7 +165,7 @@ class BaselineEnv(GridWorldEnv):
             arrays_list.append(t)
 
         if self.base_station:
-            arrays_list = [(self.size - 1, 0)]
+            arrays_list.append((self.size - 1, 0))
 
         np_arraylist = list(map(np.array, arrays_list))
         self._build_adj_matrix(np_arraylist)

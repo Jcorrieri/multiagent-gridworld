@@ -85,7 +85,7 @@ class GridWorldEnv(ParallelEnv):
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent: AgentID) -> gymnasium.spaces.Space:
         """Return observation space for a specific agent"""
-        # 12x12xC observation space with binary values
+        # WxHxC observation space with binary values
         return spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32)
 
     @functools.lru_cache(maxsize=None)
@@ -154,7 +154,7 @@ class GridWorldEnv(ParallelEnv):
             location = np.array(self.agent_locations[f"agent_{i}"])
             locations_to_ndarray_list.append(location)
         if self.base_station:
-            location = self.agent_locations["base_station"]
+            location = np.array(self.agent_locations["base_station"])
             locations_to_ndarray_list.append(location)
 
         return locations_to_ndarray_list
@@ -168,7 +168,7 @@ class GridWorldEnv(ParallelEnv):
         self.obs_mat = np.zeros((self.size, self.size), dtype=int)
         self.timestep = 0
 
-        if not self.map_indices:
+        if not self.map_indices:  # cycle through each map in a random order during training, then reshuffle
             self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
 
         mat_idx = self.map_indices.pop()
@@ -268,7 +268,6 @@ class GridWorldEnv(ParallelEnv):
             "graph": G,
         }
 
-        # Calculate rewards
         self.reward_scheme.calculate_rewards(rewards, step_info, self)
 
         for (row, col) in self.agent_locations.values():

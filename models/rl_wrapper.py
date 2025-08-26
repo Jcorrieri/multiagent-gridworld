@@ -14,7 +14,7 @@ class CustomTorchModelV2(TorchModelV2, nn.Module):
         module_file = kwargs['module_file']
         if ".py" not in module_file:
             module_file += ".py"
-
+        # get torch model from config
         models_dir = os.path.abspath("models/arch")
         module_path = os.path.join(models_dir, module_file)
         module_name = os.path.splitext(os.path.basename(module_path))[0]
