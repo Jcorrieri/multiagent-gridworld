@@ -52,7 +52,7 @@ def build_algo(test_config) -> tuple[Algorithm, str]:
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
     tester = Algorithm.from_checkpoint(checkpoint_dir)
 
-    return tester, model
+    return tester, os.path.join("gridworld", model)
 
 
 def test(env_config, test_config) -> None:
