@@ -9,9 +9,10 @@ environment:
     cr: 10
 
 training:
-    module_file: cnn_2conv1linear.py
+    module_file: cnn_2conv2lineraLSTM.py
     num_episodes: 25000
-    target_reward: 650
+    target_reward: 9999
+    max_seq_len: 16
     gamma: 0.90
     lr: 0.0003
     grad_clip: 1.0

@@ -1,3 +1,4 @@
+
 import argparse
 import os
 import shutil
@@ -18,27 +19,28 @@ def build_config(env_config: dict, training_config: dict):
     dummy_env = make_env(env_config)
 
     ppo_params = training_config.copy()
-    ppo_params.pop('module_file')
-    ppo_params.pop('num_episodes')
-    ppo_params.pop('target_reward')
+    # remove keys that are NOT valid .training() kwargs
+    for k in ['module_file', 'num_episodes', 'target_reward', 'max_seq_len', 'restore_from_model']:
+        ppo_params.pop(k, None)
 
     if training_config.get('l2_regularization'):
         optimizer = {"weight_decay": training_config['l2_regularization']}
-        ppo_params.pop('l2_regularization')
+        ppo_params.pop('l2_regularization', None)
         ppo_params['optimizer'] = optimizer
 
     config = get_default_config(
         env_config,
         ppo_params,
         training_config.get("module_file", "cnn_2conv2linear.py"),
-        dummy_env
+        dummy_env,
+        max_seq_len=training_config.get("max_seq_len", 16),  # <-- NEW: thread max_seq_len
     )
 
     dummy_env.close()
     # config.log_level = "DEBUG"
     return config.build_algo()
 
-def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dummy_env: ParallelEnv) -> PPOConfig:
+def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dummy_env: ParallelEnv, max_seq_len: int = 16) -> PPOConfig:
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
 
     config = (
@@ -61,8 +63,10 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
         .training(
             model={
                 "custom_model": "shared_cnn",
+                "max_seq_len": max_seq_len,
                 "custom_model_config": {
-                    "module_file": module_file
+                    "module_file": module_file,
+                    "max_seq_len": max_seq_len,  # our wrapper also reads it (for sanity)
                 },
             },
             use_gae=True,
@@ -83,6 +87,7 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
             evaluation_interval=None
         )
         .debugging(
+            log_level="DEBUG",
             seed=42
         )
         .api_stack(
