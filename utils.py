@@ -34,7 +34,7 @@ def make_env(env_config: dict):
     else:
         return GridWorldEnv(env_config)
 
-def plot_metrics(metrics: [[float, float]], path: str):
+def plot_metrics(metrics: list[tuple[float, float]], path: str):
     mean_rewards = [m[0] for m in metrics]
     mean_lengths = [m[1] for m in metrics]
     episode = [m[2] for m in metrics]
