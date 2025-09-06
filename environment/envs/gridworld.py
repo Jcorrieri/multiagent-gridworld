@@ -50,10 +50,14 @@ class GridWorldEnv(ParallelEnv):
 
         self.reward_scheme: RewardScheme = env_params.get("reward_scheme", Default())
 
-        self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
-        self.visible_tiles = np.zeros((self.size, self.size), dtype=int)
-        self.adj_matrix = np.zeros((self.total_num_robots, self.total_num_robots), dtype=int)
-        self.obs_mat = np.zeros((self.size, self.size), dtype=int)
+        self.comp_maps = {}
+        self.agent_comps = {}
+        self.next_comp_id = 0
+
+        self.visited_tiles = np.zeros((self.size, self.size), dtype=np.uint8)
+        self.visible_tiles = np.zeros((self.size, self.size), dtype=np.uint8)
+        self.adj_matrix = np.zeros((self.total_num_robots, self.total_num_robots), dtype=np.uint8)
+        self.obs_mat = np.zeros((self.size, self.size), dtype=np.uint8)
 
         self.num_maps = 50
         self.map_dir_path = env_params.get("map_dir_path")
@@ -103,50 +107,6 @@ class GridWorldEnv(ParallelEnv):
                     self.adj_matrix[i][j] = 1
                     self.adj_matrix[j][i] = 1
 
-    def generate_observation(self, agent):
-        channels = 4
-
-        obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
-
-        # Layer 0: Obstacle Map
-        if self.use_local_fov:
-            visible_obs_mask = (self.obs_mat == 1) & (self.visible_tiles == 1)
-            obs[visible_obs_mask, 0] = 1.0
-        else:
-            obs[self.obs_mat, 0] = 1.0
-
-        # Layer 1: Agent's own position
-        (row, col) = self.agent_locations[agent]
-        obs[row, col, 1] = 1.0
-
-        # Layer 2: Other agents' positions including base station if enabled
-        for agent_key, (row, col) in filter(lambda kv : kv[0] != agent, self.agent_locations.items()):
-            obs[row, col, 2] = 1.0
-
-        # Layer 3: Coverage Map
-        mask = self.visited_tiles == 1
-        obs[mask, 3] = 1.0
-
-        return obs
-
-    def update_visibility(self):
-        for agent in self.agents:
-            center_row, center_col = self.agent_locations[agent]
-
-            row_start = max(0, center_row - self.fov_range)
-            row_end = min(self.size, center_row + self.fov_range + 1)  # +1 to account for exclusive Python slicing
-            col_start = max(0, center_col - self.fov_range)
-            col_end = min(self.size, center_col + self.fov_range + 1)
-
-            rr, cc = np.meshgrid(range(row_start, row_end), range(col_start, col_end), indexing='ij')
-            locations = np.stack((rr, cc), axis=-1).reshape(-1, 2)  # all visible tiles
-
-            self.visible_tiles[locations[:, 0], locations[:, 1]] = 1
-
-            unvisited_obstacle_mask = (self.visible_tiles == 1) & (self.obs_mat == 1)
-
-            self.visited_tiles[unvisited_obstacle_mask] = 1.0
-
     def locations_to_ndarray_list(self) -> list[np.ndarray[int, int]]:
         locations_to_ndarray_list = []
 
@@ -158,15 +118,135 @@ class GridWorldEnv(ParallelEnv):
             locations_to_ndarray_list.append(location)
 
         return locations_to_ndarray_list
+    
+    def get_next_comp_id(self):
+        comp_id = self.next_comp_id
+        self.next_comp_id += 1
+        return comp_id
+    
+    def clone_map(self, old_map):
+        return {
+            "visited_tiles": old_map["visited_tiles"].copy(),
+            "obstacle_map": old_map["obstacle_map"].copy(),
+        }
+    
+    def generate_observation(self, agent):
+        channels = 4
+
+        component_map = self.comp_maps[self.agent_comps[agent]]
+        neighbors = [a for a, c in self.agent_comps.items() if c == self.agent_comps[agent] and a != agent]
+
+        obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
+
+        # Layer 0: Obstacle Map
+        obs[:, :, 0] = component_map["obstacle_map"]
+
+        # Layer 1: Agent's own position
+        (row, col) = self.agent_locations[agent]
+        obs[row, col, 1] = 1.0
+
+        # Layer 2: Other agents' positions including base station if enabled
+        for agent_key in neighbors:
+            (row, col) = self.agent_locations[agent_key]
+            obs[row, col, 2] = 1.0
+
+        # Layer 3: Coverage Map
+        obs[:, :, 3] = component_map["visited_tiles"]
+
+        return obs
+
+    def update_agent_maps(self):
+        # update visited tiles and discovered obstacles based on agent's fov assuming visible agents are within communication range
+        for agent in self.agents:
+            component_map = self.comp_maps[self.agent_comps[agent]] #
+            visible_tiles = np.zeros((self.size, self.size), dtype=np.uint8)
+
+            center_row, center_col = self.agent_locations[agent]
+
+            row_start = max(0, center_row - self.fov_range)
+            row_end = min(self.size, center_row + self.fov_range + 1)  # +1 to account for exclusive Python slicing
+            col_start = max(0, center_col - self.fov_range)
+            col_end = min(self.size, center_col + self.fov_range + 1)
+
+            rr, cc = np.meshgrid(range(row_start, row_end), range(col_start, col_end), indexing='ij')
+            locations = np.stack((rr, cc), axis=-1).reshape(-1, 2)  # all visible tiles
+
+            visible_tiles[locations[:, 0], locations[:, 1]] = 1
+            self.visible_tiles = np.maximum(self.visible_tiles, visible_tiles)  # update global visible tiles
+
+            visible_obstacle_mask = (visible_tiles == 1) & (self.obs_mat == 1)
+
+            component_map["visited_tiles"][visible_obstacle_mask] = 1.0
+            component_map["visited_tiles"][self.agent_locations[agent]] = 1.0
+            component_map["obstacle_map"][visible_obstacle_mask] = 1.0
+
+    def update_components(self, G: nx.Graph):
+        # find connected components and update component mappings
+        components = list(nx.connected_components(G))
+
+        # prepare new component mappings
+        new_components = []
+        for component in components:
+            agent_ids = [f"agent_{i}" for i in component if i < self._num_agents]
+            if self.base_station and self._num_agents in component:
+                agent_ids.append("base_station")
+            
+            old_comp_ids = {self.agent_comps[agent] for agent in agent_ids}
+            new_comp_id = self.get_next_comp_id()
+            new_components.append((new_comp_id, old_comp_ids, agent_ids))
+
+        new_comp_maps = {} 
+        reused_old_ids = set()  # track which old comp id was reused (for split reuse)
+
+        for new_comp_id, old_comp_ids, agent_ids in new_components:
+            if len(old_comp_ids) == 1:  # split or no change
+                # reuse old map if possible, otherwise clone it
+                old_comp_id = list(old_comp_ids)[0]
+                if old_comp_id not in reused_old_ids:
+                    new_comp_maps[new_comp_id] = self.comp_maps[old_comp_id]
+                    reused_old_ids.add(old_comp_id)
+                else:
+                    new_comp_maps[new_comp_id] = self.clone_map(self.comp_maps[old_comp_id])
+            else:
+                # merge multiple old maps into one
+                old_comp_ids = list(old_comp_ids)
+                merged_map = self.clone_map(self.comp_maps[old_comp_ids[0]])
+
+                for old_comp_id in old_comp_ids[1:]:
+                    merged_map["visited_tiles"] = np.maximum(merged_map["visited_tiles"], self.comp_maps[old_comp_id]["visited_tiles"])
+                    merged_map["obstacle_map"] = np.maximum(merged_map["obstacle_map"], self.comp_maps[old_comp_id]["obstacle_map"])
+
+                new_comp_maps[new_comp_id] = merged_map
+
+            for agent in agent_ids:
+                self.agent_comps[agent] = new_comp_id
+
+        self.comp_maps = new_comp_maps
 
     def reset(self, seed=None, options=None):
         if seed is not None:
             self.rng = np.random.default_rng(seed)
 
-        self.visited_tiles = np.zeros((self.size, self.size), dtype=int)
-        self.visible_tiles = np.zeros((self.size, self.size), dtype=int)
-        self.obs_mat = np.zeros((self.size, self.size), dtype=int)
+        self.comp_maps = {}
+        self.agent_comps = {}
+        self.next_comp_id = 0
+
+        self.visited_tiles = np.zeros((self.size, self.size), dtype=np.uint8)
+        self.visible_tiles = np.zeros((self.size, self.size), dtype=np.uint8)
+        self.obs_mat = np.zeros((self.size, self.size), dtype=np.uint8)
         self.timestep = 0
+
+        # set up initial component map
+        initial_map = {
+            "visited_tiles": self.visited_tiles.copy(),
+            "obstacle_map": self.obs_mat.copy(),
+        }
+        initial_comp_id = self.get_next_comp_id()
+        self.comp_maps[initial_comp_id] = initial_map
+        for agent in self.agents:
+            self.agent_comps[agent] = initial_comp_id
+        if self.base_station:
+            self.agent_comps["base_station"] = initial_comp_id
 
         if not self.map_indices:  # cycle through each map in a random order during training, then reshuffle
             self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
@@ -188,13 +268,11 @@ class GridWorldEnv(ParallelEnv):
             self.agent_locations[agent] = (self.size - 1, i + base_station_offset)
 
         self.visited_tiles[self.size - 1, :self.total_num_robots] = 1
+        self.visited_tiles[self.obs_mat == 1] = 1  # obstacles are considered visited
 
         self._build_adj_matrix(self.locations_to_ndarray_list())
 
-        if self.use_local_fov:
-            self.update_visibility()
-        else:
-            self.visited_tiles[self.obs_mat == 1] = 1.0
+        self.update_agent_maps()
 
         observations = {}
         infos = {}
@@ -259,6 +337,8 @@ class GridWorldEnv(ParallelEnv):
         coverage = visited_count / self.max_coverage
         prev_coverage = np.sum(self.visited_tiles > 0) / self.max_coverage
 
+        self.update_components(G)
+
         step_info = {
             "coverage": coverage * 100,
             "prev_coverage": prev_coverage * 100,
@@ -273,8 +353,7 @@ class GridWorldEnv(ParallelEnv):
         for (row, col) in self.agent_locations.values():
             self.visited_tiles[row, col] = 1
 
-        if self.use_local_fov:
-            self.update_visibility()
+        self.update_agent_maps()
 
         observations = {}
         infos = {}
@@ -331,8 +410,19 @@ class GridWorldEnv(ParallelEnv):
         # Calculate grid cell size
         pix_square_size = self.window_size / self.size
 
+        # NOTE: dev testing only
+        # visible_tiles = self.visible_tiles
+        # obstacle_map = self.obs_mat
+        # agent_locations = self.agent_locations
+        visible_tiles = self.visible_tiles
+        agent = "agent_0"
+        agent_0_map = self.comp_maps[self.agent_comps[agent]]
+        visited_tiles = agent_0_map["visited_tiles"] 
+        obstacle_map = agent_0_map["obstacle_map"] # self.obs_mat
+        agent_locations = {a: self.agent_locations[a] for a, c in self.agent_comps.items() if c == self.agent_comps[agent]}
+
         # Draw visited cells
-        visited_indices = np.argwhere(self.visited_tiles > 0)
+        visited_indices = np.argwhere(visited_tiles > 0)
         for idx in visited_indices:
             pygame.draw.rect(
                 canvas,
@@ -343,7 +433,7 @@ class GridWorldEnv(ParallelEnv):
                     ),
             )
 
-        for obstacle in np.argwhere(self.obs_mat == 1):
+        for obstacle in np.argwhere(obstacle_map == 1):
             pygame.draw.rect(
                 canvas,
                 (0, 0, 0), # Black for obstacles
@@ -354,7 +444,7 @@ class GridWorldEnv(ParallelEnv):
             )
 
         if self.use_local_fov: # fog of war
-            indices = np.argwhere(self.visible_tiles == 0)
+            indices = np.argwhere(visible_tiles == 0)
             for idx in indices:
                 pygame.draw.rect(
                     canvas,
@@ -402,7 +492,7 @@ class GridWorldEnv(ParallelEnv):
             )
 
         # Draw agents and base station if enabled
-        for i, (agent, (x, y)) in enumerate(self.agent_locations.items()):
+        for i, (agent, (x, y)) in enumerate(agent_locations.items()):
             if agent == "base_station":
                 color = (85, 85, 85)
                 text = "B"
@@ -451,9 +541,9 @@ if __name__ == "__main__":
 
     env = GridWorldEnv({
         'render_mode': "human",
-        'map_dir_path': '../obstacle-mats/testing',
+        'map_dir_path': 'environment/obstacle-mats/testing',
         'base_station': False,
-        'fov': 25,
+        'fov': 8,
         'num_agents': 5,
         'reward_scheme': reward_scheme
     })

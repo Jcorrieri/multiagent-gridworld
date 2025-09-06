@@ -2,7 +2,7 @@ environment:
     env_name: gridworld
     reward_scheme: coverage
     base_station: False
-    fov: 4
+    fov: 8
     max_steps: 1000
     size: 25
     num_agents: 5

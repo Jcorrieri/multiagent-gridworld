@@ -389,9 +389,9 @@ if __name__ == "__main__":
 
     env = BaselineEnv({
         'render_mode': "human",
-        'map_dir_path': '../obstacle-mats/testing',
-        'base_station': False,
-        'fov': 25,
+        'map_dir_path': 'environment/obstacle-mats/testing',
+        'base_station': True,
+        'fov': 8,
         'num_agents': 5,
         'reward_scheme': reward_scheme
     })

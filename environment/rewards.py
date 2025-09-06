@@ -44,8 +44,8 @@ class Coverage(RewardScheme):
 
         exploration_reward = (coverage - prev_coverage) * 100 * coverage_multiplier  # added coverage multiplier bonus
         disconnection_penalty = -0.5
-        obstacle_penalty = -0.1
-        timestep_penalty = 0.0
+        obstacle_penalty = 0.0
+        timestep_penalty = -0.1
 
         for agent in env.agents:
             if collisions[agent]:
