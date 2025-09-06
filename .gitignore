@@ -4,4 +4,5 @@ __pycache__/
 models/__pycache__/
 *.iml
 /experiments/*/*/ckpt/
+/experiments/*/*/saved/
 /myenv/
