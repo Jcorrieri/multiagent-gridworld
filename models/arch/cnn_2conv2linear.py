@@ -58,19 +58,16 @@ class ActorCriticCNNModel(nn.Module):
         )
 
     def forward(self, obs):
-        # obs is a dict: {"actor": ..., "critic": ...}
         actor_obs = obs["actor"]
         critic_obs = obs["critic"]
 
         # Actor branch
-        if actor_obs.ndim == 4 and actor_obs.shape[1] != self.obs_space.shape[-1]:
-            actor_obs = actor_obs.permute(0, 3, 1, 2)
+        actor_obs = actor_obs.permute(0, 3, 1, 2)  # env outputs different batch dimensions
         x_actor = self.actor_conv(actor_obs)
         logits = self.actor_linear(x_actor)
 
         # Critic branch
-        if critic_obs.ndim == 4 and critic_obs.shape[1] != self.obs_space.shape[-1]:
-            critic_obs = critic_obs.permute(0, 3, 1, 2)
+        critic_obs = critic_obs.permute(0, 3, 1, 2)  # env outputs different batch dimensions
         x_critic = self.critic_conv(critic_obs)
         value = self.critic_linear(x_critic)
 
