@@ -90,7 +90,10 @@ class GridWorldEnv(ParallelEnv):
     def observation_space(self, agent: AgentID) -> gymnasium.spaces.Space:
         """Return observation space for a specific agent"""
         # WxHxC observation space with binary values
-        return spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32)
+        return spaces.Dict({
+            "actor": spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32),
+            "critic": spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32),
+        })
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent: AgentID) -> gymnasium.spaces.Space:
@@ -136,24 +139,37 @@ class GridWorldEnv(ParallelEnv):
         component_map = self.comp_maps[self.agent_comps[agent]]
         neighbors = [a for a, c in self.agent_comps.items() if c == self.agent_comps[agent] and a != agent]
 
-        obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
+        actor_obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
+        critic_obs = np.zeros((self.size, self.size, channels), dtype=np.float32)
 
         # Layer 0: Obstacle Map
-        obs[:, :, 0] = component_map["obstacle_map"]
+        actor_obs[:, :, 0] = component_map["obstacle_map"]
+        critic_obs[:, :, 0] = self.obs_mat  # critic sees full obstacle map
 
         # Layer 1: Agent's own position
         (row, col) = self.agent_locations[agent]
-        obs[row, col, 1] = 1.0
+        actor_obs[row, col, 1] = 1.0
+        critic_obs[row, col, 1] = 1.0
 
         # Layer 2: Other agents' positions including base station if enabled
         for agent_key in neighbors:
             (row, col) = self.agent_locations[agent_key]
-            obs[row, col, 2] = 1.0
+            actor_obs[row, col, 2] = 1.0
+
+        # critic sees all agents all the time
+        for agent_key in self.agents:
+            if agent_key != agent:
+                (row, col) = self.agent_locations[agent_key]
+                critic_obs[row, col, 2] = 1.0
 
         # Layer 3: Coverage Map
-        obs[:, :, 3] = component_map["visited_tiles"]
+        actor_obs[:, :, 3] = component_map["visited_tiles"]
+        critic_obs[:, :, 3] = self.visited_tiles  # critic sees full coverage map
 
-        return obs
+        return {
+            "actor": actor_obs,
+            "critic": critic_obs
+        }
 
     def update_agent_maps(self):
         # update visited tiles and discovered obstacles based on agent's fov assuming visible agents are within communication range
@@ -411,15 +427,15 @@ class GridWorldEnv(ParallelEnv):
         pix_square_size = self.window_size / self.size
 
         # NOTE: dev testing only
-        # visible_tiles = self.visible_tiles
-        # obstacle_map = self.obs_mat
-        # agent_locations = self.agent_locations
+        visited_tiles = self.visited_tiles
+        obstacle_map = self.obs_mat
+        agent_locations = self.agent_locations
         visible_tiles = self.visible_tiles
-        agent = "agent_0"
-        agent_0_map = self.comp_maps[self.agent_comps[agent]]
-        visited_tiles = agent_0_map["visited_tiles"] 
-        obstacle_map = agent_0_map["obstacle_map"] # self.obs_mat
-        agent_locations = {a: self.agent_locations[a] for a, c in self.agent_comps.items() if c == self.agent_comps[agent]}
+        # agent = "agent_0"
+        # agent_0_map = self.comp_maps[self.agent_comps[agent]]
+        # visited_tiles = agent_0_map["visited_tiles"] 
+        # obstacle_map = agent_0_map["obstacle_map"] # self.obs_mat
+        # agent_locations = {a: self.agent_locations[a] for a, c in self.agent_comps.items() if c == self.agent_comps[agent]}
 
         # Draw visited cells
         visited_indices = np.argwhere(visited_tiles > 0)
@@ -556,6 +572,7 @@ if __name__ == "__main__":
         vals = np.random.default_rng().integers(low=0, high=5, size=env.num_agents)
         actions_dict = {f'agent_{i}': int(val) for i, val in enumerate(vals)}
         observations, rewards, terminated, truncated, infos = env.step(actions_dict)
+        print(type(observations))
         r += sum(rewards.values())
         print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(r, 2), end="")
         episode_over = all(terminated.values()) or all(truncated.values())

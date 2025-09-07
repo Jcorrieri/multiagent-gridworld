@@ -6,3 +6,4 @@ models/__pycache__/
 /experiments/*/*/ckpt/
 /experiments/*/*/saved/
 /myenv/
+bfg-1.15.0.jar

@@ -62,8 +62,10 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
             model={
                 "custom_model": "shared_cnn",
                 "custom_model_config": {
-                    "module_file": module_file
+                    "module_file": module_file,
+                    "disable_preprocessor": True
                 },
+                "vf_share_layers": False,
             },
             use_gae=True,
             use_critic=True,
