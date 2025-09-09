@@ -13,7 +13,7 @@ training:
     num_episodes: 10000
     target_reward: 10000
     gamma: 0.90
-    lr: 0.0001
+    lr: 0.0003
     grad_clip: 1.0
     train_batch_size: 10000
     num_epochs: 5
