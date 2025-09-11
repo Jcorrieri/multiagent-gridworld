@@ -154,7 +154,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*100 + "\n\nBeginning Training...\n")
 
     max_rew_iter_count = 0
-    ckpt_interval = 500
+    ckpt_interval = 200
     target_rew = training_config["target_reward"]
     best_score = -np.inf
 

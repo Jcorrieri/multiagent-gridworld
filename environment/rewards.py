@@ -6,7 +6,7 @@ class RewardScheme:
         raise NotImplementedError
 
     def get_terminated(self):
-        termination_bonus = 500
+        termination_bonus = 50
         return termination_bonus
 
 
@@ -33,28 +33,49 @@ class Default(RewardScheme):
 
             agent_rewards[agent] += timestep_penalty
 
-
 class Coverage(RewardScheme):
     def calculate_rewards(self, agent_rewards, step_info, env):
-        connected = step_info["connected"]
-        collisions = step_info["collisions"]
-        coverage = (step_info['coverage'] / 100)
-        prev_coverage = (step_info['prev_coverage'] / 100)
-        coverage_multiplier = 1.0 + (coverage ** 2)  # added coverage multiplier [1.0, 2.0]
+            connected = step_info["connected"]
+            collisions = step_info["collisions"]
+            coverage = (step_info['coverage'] / 100)
+            prev_coverage = (step_info['prev_coverage'] / 100)
 
-        exploration_reward = (coverage - prev_coverage) * 100 * coverage_multiplier  # added coverage multiplier bonus
-        disconnection_penalty = -0.5
-        obstacle_penalty = 0.0
-        timestep_penalty = -0.1
+            exploration_reward = max(0.0, coverage - prev_coverage) * 100 / env.num_agents
+            disconnection_penalty = -1.0 / env.num_agents
+            obstacle_penalty = -0.1
+            timestep_penalty = 0.00
+            
+            for agent in env.agents:
+                if collisions[agent]:
+                    agent_rewards[agent] += obstacle_penalty
 
-        for agent in env.agents:
-            if collisions[agent]:
-                agent_rewards[agent] += obstacle_penalty
+                if not connected:
+                    agent_rewards[agent] += disconnection_penalty / env.num_agents
 
-            if not connected:
-                agent_rewards[agent] += disconnection_penalty
+                agent_rewards[agent] += exploration_reward + timestep_penalty
 
-            agent_rewards[agent] += exploration_reward + timestep_penalty
+#--- Used for v6
+# class Coverage(RewardScheme):
+#     def calculate_rewards(self, agent_rewards, step_info, env):
+#         connected = step_info["connected"]
+#         collisions = step_info["collisions"]
+#         coverage = (step_info['coverage'] / 100)
+#         prev_coverage = (step_info['prev_coverage'] / 100)
+#         coverage_multiplier = 1.0 + (coverage ** 2)  # added coverage multiplier [1.0, 2.0]
+
+#         exploration_reward = (coverage - prev_coverage) * 100 * coverage_multiplier  # added coverage multiplier bonus
+#         disconnection_penalty = -0.5
+#         obstacle_penalty = 0.0
+#         timestep_penalty = 0.0
+
+#         for agent in env.agents:
+#             if collisions[agent]:
+#                 agent_rewards[agent] += obstacle_penalty
+
+#             if not connected:
+#                 agent_rewards[agent] += disconnection_penalty
+
+#             agent_rewards[agent] += exploration_reward + timestep_penalty
 
 
 class ExplorerMaintainer(RewardScheme):
@@ -97,46 +118,34 @@ class ExplorerMaintainer(RewardScheme):
 
 
 class Components(RewardScheme):
-    # For Tile Discovery:
-    #
-    # Lone agent:    +0.5 + (0.0–0.5) + 0.2 - 3.2 = [-2.5, -2.0]
-    # Team of 2/5:   +0.5 + (0.0–0.5) + 0.4 - 2.4 = [-1.5, -1.0]
-    # Team of 3/5:   +0.5 + (0.0–0.5) + 0.6 - 1.6 = [-0.5, -0.0]
-    # Team of 4/5:   +0.5 + (0.0–0.5) + 0.8 - 0.8 = [+0.5, +1.0]
-    # Team of 5/5:   +0.5 + (0.0–0.5) + 1.0 - 0.0 = [+1.5, +2.0]
-
-    # For No Discovery:
-    #
-    # Lone agent:     0.2 - 3.2 = -3.0
-    # Team of 2/5:    0.4 - 2.4 = -2.0
-    # Team of 3/5:    0.6 - 1.6 = -1.0
-    # Team of 4/5:    0.8 - 0.8 =  0.0
-    # Team of 5/5:    1.0 - 0.0 = +1.0
     def calculate_rewards(self, agent_rewards, step_info, env):
-        total_teammate_bonus = 1.0
+        collisions = step_info["collisions"]
+        coverage = (step_info['coverage'] / 100)
+        prev_coverage = (step_info['prev_coverage'] / 100)
+
         missing_teammate_penalty = -0.8
-        new_tile_bonus = 0.5
-        total_coverage_bonus = 0.5
-        coverage_ratio = (step_info['coverage'] / 100)
-        coverage_bonus = (coverage_ratio ** 2) * total_coverage_bonus
+        coverage_multiplier = 1.0 + (coverage ** 2)  # added coverage multiplier [1.0, 2.0]
+        exploration_reward = (coverage - prev_coverage) * 100 * coverage_multiplier  # added coverage multiplier bonus
+        obstacle_penalty = -0.1
 
         G: nx.Graph = step_info['graph']
         components = nx.connected_components(G)
 
-        total_agents = env.num_agents
         for component in components:
             num_agents = len(component)
-            teammate_bonus = (num_agents / total_agents) * total_teammate_bonus
-            disconnect_penalty = (total_agents - num_agents) * missing_teammate_penalty
+            disconnect_penalty = (env.total_num_robots - num_agents) * missing_teammate_penalty
 
             for agent_idx in component:
-                if f"agent_{agent_idx}" not in env.agents:  # base-station
+                agent = f"agent_{agent_idx}"
+                if agent not in env.agents:  # base-station
                     continue
+                
+                if collisions[agent]:
+                    agent_rewards[agent] += obstacle_penalty
 
-                # All agents get the disconnect penalty
-                agent_rewards[f"agent_{agent_idx}"] += disconnect_penalty
+                agent_rewards[agent] += disconnect_penalty
 
-                # Only discovering agents get discovery and teammate bonuses
-                current_pos = env.agent_locations[agent_idx]
-                if env.visited_tiles[current_pos[0], current_pos[1]] == 0:
-                    agent_rewards[f"agent_{agent_idx}"] += new_tile_bonus + coverage_bonus + teammate_bonus
+                agent_rewards[agent] += exploration_reward
+
+        for k in agent_rewards:
+            agent_rewards[k] /= env.total_num_robots

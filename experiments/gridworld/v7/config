@@ -13,7 +13,7 @@ training:
     num_episodes: 10000
     target_reward: 10000
     gamma: 0.90
-    lr: 0.0003
+    lr: 0.0001
     grad_clip: 1.0
     train_batch_size: 10000
     num_epochs: 5
@@ -24,8 +24,8 @@ training:
 
 testing:
     num_episodes_per_map: 10
-    seed: 42
+    seed: 13
     explore: True
     render: False
-    model_version: v5
+    model_version: v6
     checkpoint: -1

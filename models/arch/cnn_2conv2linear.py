@@ -8,13 +8,12 @@ class ActorCriticCNNModel(nn.Module):
 
         self.obs_space = obs_space
 
-        # h, w, c = obs_space["agent_0"]["actor"].shape  # HWC
-        h, w, c = 25, 25, 4  # NOTE: hardcoded for now due to dict preprocessing bug
+        h, w, c = 25, 25, 4  # HWC
 
-        self.actor_conv = nn.Sequential(
+        self.conv = nn.Sequential(
             nn.Conv2d(in_channels=c, out_channels=32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            #nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.Flatten()
@@ -22,53 +21,35 @@ class ActorCriticCNNModel(nn.Module):
 
         with torch.no_grad():
             dummy = torch.zeros(1, c, h, w)
-            out = self.actor_conv(dummy)
-            actor_flattened_size = out.flatten(1).size(1)
+            out = self.conv(dummy)
+            flattened_size = out.flatten(1).size(1)
 
-        self.actor_linear = nn.Sequential(
-            nn.Linear(actor_flattened_size, 128),
+        self.actor_head = nn.Sequential(
+            nn.Linear(flattened_size, 128),
             nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(64, num_outputs)  # output layer
-        )  
-
-        ch, cw, cc = 25, 25, 4  # NOTE: hardcoded for now due to dict preprocessing bug
-
-        self.critic_conv = nn.Sequential(
-            nn.Conv2d(in_channels=cc, out_channels=32, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            #nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Flatten()
+            nn.Linear(64, num_outputs)
         )
 
-        with torch.no_grad():
-            dummy = torch.zeros(1, cc, ch, cw)
-            out = self.critic_conv(dummy)
-            critic_flattened_size = out.flatten(1).size(1)
-
-        self.critic_linear = nn.Sequential(
-            nn.Linear(critic_flattened_size, 128),
+        self.critic_head = nn.Sequential(
+            nn.Linear(flattened_size, 128),
             nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(64, 1)  # output layer
+            nn.Linear(64, 1)
         )
 
     def forward(self, obs):
-        actor_obs = obs["actor"]
-        critic_obs = obs["critic"]
+        if not hasattr(obs, "ndim"):
+            obs = obs["actor"]
 
-        # Actor branch
-        actor_obs = actor_obs.permute(0, 3, 1, 2)  # env outputs different batch dimensions
-        x_actor = self.actor_conv(actor_obs)
-        logits = self.actor_linear(x_actor)
+        if obs.ndim == 4 and obs.shape[1] != self.obs_space.shape[-1]:  # PettingZoo obs are [B, H, W, C]
+            obs = obs.permute(0, 3, 1, 2)  # Torch expects [B, C, H, W]
 
-        # Critic branch
-        critic_obs = critic_obs.permute(0, 3, 1, 2)  # env outputs different batch dimensions
-        x_critic = self.critic_conv(critic_obs)
-        value = self.critic_linear(x_critic)
+        x = self.conv(obs)
+
+        logits = self.actor_head(x)
+        value = self.critic_head(x)
 
         return logits, value
