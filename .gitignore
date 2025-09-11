@@ -4,6 +4,9 @@ __pycache__/
 models/__pycache__/
 *.iml
 /experiments/*/*/ckpt/
-/experiments/*/*/saved/
+/experiments/*
+!/experiments/v4/
+/models/arch/*
+!/models/arch/cnn_2conv2linear.py
 /myenv/
 bfg-1.15.0.jar
