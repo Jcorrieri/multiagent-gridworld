@@ -81,7 +81,7 @@ def test(env_config, test_config) -> None:
     print(f"Model Version: {test_config['model_version']}")
     print("-"*50)
 
-    num_maps = 5
+    num_maps = 50
     num_episodes_per_map = test_config.get("num_episodes_per_map", 10)
     num_episodes = num_maps * num_episodes_per_map
 
