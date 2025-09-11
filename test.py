@@ -1,4 +1,5 @@
 import os.path
+import time
 
 import pandas as pd
 from ray.rllib.algorithms import Algorithm
@@ -13,7 +14,9 @@ from utils import make_env
 def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, explore: bool):
     observations, _ = test_env.reset()
     episode_over = False
-    coverage, total_reward, steps, num_breaks = 0, 0, 0, 0
+    coverage, total_reward, makespan, num_breaks = 0, 0, 0, 0
+    start_ns = time.perf_counter_ns()
+
     while not episode_over:
         actions = {
             agent: model.compute_single_action(
@@ -28,14 +31,19 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
 
         coverage = infos['agent_0']['coverage']
         total_reward += sum(rewards.values())
-        steps += 1
+        makespan += 1
         if infos['agent_0']['connection_broken']:
             num_breaks += 1
 
         # print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(total_reward, 2), end="")
 
         episode_over = all(terminated.values()) or all(truncated.values())
-    return total_reward, steps, num_breaks, coverage
+
+    elapsed_ms = round((time.perf_counter_ns() - start_ns) / 1_000_000, 2)
+    communication_ratio = round((makespan - num_breaks) / makespan * 100, 2)
+    coverage = round(coverage, 2)
+
+    return total_reward, makespan, coverage, communication_ratio, elapsed_ms
 
 def build_algo(test_config) -> tuple[Algorithm, str]:
     model = test_config.get('model_version', "v0")
@@ -54,7 +62,6 @@ def build_algo(test_config) -> tuple[Algorithm, str]:
 
     return tester, os.path.join("gridworld", model)
 
-
 def test(env_config, test_config) -> None:
     env_config["seed"] = test_config.get("seed", 42)
     if test_config.get("render", False):
@@ -71,67 +78,43 @@ def test(env_config, test_config) -> None:
     print(f"Seed: {env_config['seed']}")
     print(f"Environment: {env_config['env_name']}")
     print(f"Reward Scheme: {env_config['reward_scheme']}")
+    print(f"Model Version: {test_config['model_version']}")
     print("-"*50)
 
     num_maps = 50
     num_episodes_per_map = test_config.get("num_episodes_per_map", 10)
     num_episodes = num_maps * num_episodes_per_map
 
+    csv_data = []
     if num_episodes > 0:
         print(f"Running {num_episodes} test episodes")
         game_env = make_env(env_config)
 
-        epis_connected, total_reward, total_steps, total_breaks, total_coverage = 0, 0, 0, 0, 0
         for i in range(num_episodes):
-            print(f"\r{i}/{num_episodes}", end="")
-            reward, steps, num_breaks, coverage = test_one_episode(game_env, tester, test_config.get("explore", False))
-            total_reward += reward
-            total_coverage += coverage
-            total_steps += steps
-            epis_connected += 1 if (num_breaks == 0) else 0
-            total_breaks += num_breaks
+            print(f"\r{i}/{num_episodes}", end="", flush=True)
+            reward, makespan, coverage, communication_ratio, elapsed_ms = test_one_episode(
+                game_env, tester, test_config.get("explore", False)
+            )
+            csv_data.append({
+                "Episode": i + 1,
+                "Makespan": makespan,
+                "Coverage": coverage,
+                "Communication_Ratio": communication_ratio,
+                "Inference_Time_ms": elapsed_ms,
+            })
         print("")
-
-        avg_reward = round(total_reward / num_episodes, 2)
-        avg_steps = round(total_steps / num_episodes, 2)
-        avg_breaks = round(total_breaks / num_episodes, 2)
-        avg_coverage = round(total_coverage / num_episodes, 2)
 
         game_env.close()
 
-        title = f"Averages Over {num_episodes} Test Episodes"
-        comm_ratio = epis_connected / num_episodes * 100
-        percent_connected = round(100 * (1 - (avg_breaks / avg_steps)), 2)
+        num_agents = env_config["num_agents"]
+        comm_range = env_config["cr"]
 
-        print("-"*40)
-        print(f"| {title:<36} |")
-        print(f"| {'Reward:':<20} {avg_reward:>15} |")
-        print(f"| {'Steps:':<20} {avg_steps:>15} |")
-        print(f"| {'Coverage:':<20} {avg_coverage:>14}% |")
-        print(f"| {'Num Disconnects:':<20} {avg_breaks:>15} |")
-        print(f"| {'Percentage Connected:':<20} {percent_connected:>13}% |")
-        print(f"| {'Communication Ratio:':<20} {comm_ratio:>14}% |")
-        print("-"*40)
+        metrics_path = os.path.join("experiments", model_dir, "test-results", f"{num_agents}_robots_{comm_range}_cr.csv")
+        os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
 
-        csv_data = {
-            "Num_episodes_per_map": num_episodes_per_map,
-            "Num_Robots": [env_config["num_agents"]],
-            "Base_Station": [env_config["base_station"]],
-            "Avg_Reward": [avg_reward],
-            "Avg_Num_Disconnects": [avg_breaks],
-            "Avg_Connection_Percent": [percent_connected],
-            "Communication_Ratio": [comm_ratio],
-            "Avg_Duration_Steps": [avg_steps],
-            "Avg_Coverage_Percent": [avg_coverage]
-        }
+        columns = ["Episode", "Makespan", "Coverage", "Communication_Ratio", "Inference_Time_ms"]
+        df = pd.DataFrame(csv_data, columns=columns)
 
-        metrics_dir = os.path.join("experiments", model_dir, "test-results", "results.csv")
+        df.to_csv(metrics_path, index=False, mode='w', header=True)
 
-        header = True
-        if os.path.exists(metrics_dir):
-            header = False
-
-        df = pd.DataFrame(csv_data)
-        df.to_csv(metrics_dir, index=False, mode='a', header=header)
-
-        print(f"Results saved to {metrics_dir}/results.csv")
+        print(f"Results saved to {metrics_path}")
