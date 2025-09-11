@@ -10,8 +10,11 @@ environment:
 
 training:
     module_file: cnn_2conv2linear.py
+    module_file: cnn_2conv2linear.py
     num_episodes: 10000
     target_reward: 10000
+    gamma: 0.90
+    lr: 0.0001
     gamma: 0.90
     lr: 0.0001
     grad_clip: 1.0
