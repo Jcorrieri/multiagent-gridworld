@@ -4,8 +4,8 @@ __pycache__/
 models/__pycache__/
 *.iml
 /experiments/*/*/ckpt/
-/experiments/*
-!/experiments/v4/
+/experiments/gridworld/*
+!/experiments/gridworld/v4/
 /models/arch/*
 !/models/arch/cnn_2conv2linear.py
 /myenv/
