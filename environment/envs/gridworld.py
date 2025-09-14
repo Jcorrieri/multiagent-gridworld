@@ -280,8 +280,14 @@ class GridWorldEnv(ParallelEnv):
             base_station_offset = 1
             self.agent_locations["base_station"] = (self.size - 1, 0)
 
+        row_offset = 1
+        col_offset = 0
         for i, agent in enumerate(self.agents):
-            self.agent_locations[agent] = (self.size - 1, i + base_station_offset)
+            if i % self.size == 0 and i != 0:
+                row_offset += 1
+                col_offset += 25
+                
+            self.agent_locations[agent] = (self.size - row_offset, i + base_station_offset - col_offset)
 
         self.visited_tiles[self.size - 1, :self.total_num_robots] = 1
         self.visited_tiles[self.obs_mat == 1] = 1  # obstacles are considered visited
