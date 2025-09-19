@@ -6,13 +6,23 @@ from ray.rllib.algorithms import Algorithm
 from ray.rllib.models import ModelCatalog
 
 from environment.envs.baseline import BaselineEnv
+
+import imageio.v2 as imageio
+import numpy as np
+
 from environment.envs.gridworld import GridWorldEnv
 from models.rl_wrapper import CustomTorchModelV2
 from utils import make_env
 
 
 def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, explore: bool):
+    # writer = imageio.get_writer("rollout.mp4", fps=24)
+    
     observations, _ = test_env.reset()
+
+    # frame = test_env.render()  # -> (H, W, 3) uint8
+    # writer.append_data(np.asarray(frame))
+
     episode_over = False
     coverage, total_reward, makespan, num_breaks = 0, 0, 0, 0
     start_ns = time.perf_counter_ns()
@@ -29,6 +39,9 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
 
         observations, rewards, terminated, truncated, infos = test_env.step(actions)
 
+        # frame = test_env.render()  # -> (H, W, 3) uint8
+        # writer.append_data(np.asarray(frame))
+
         coverage = infos['agent_0']['coverage']
         total_reward += sum(rewards.values())
         makespan += 1
@@ -42,6 +55,8 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
     elapsed_ms = round((time.perf_counter_ns() - start_ns) / 1_000_000, 2)
     communication_ratio = round((makespan - num_breaks) / makespan * 100, 2)
     coverage = round(coverage, 2)
+
+    # writer.close()
 
     return total_reward, makespan, coverage, communication_ratio, elapsed_ms
 
@@ -95,6 +110,7 @@ def test(env_config, test_config) -> None:
             reward, makespan, coverage, communication_ratio, elapsed_ms = test_one_episode(
                 game_env, tester, test_config.get("explore", False)
             )
+            
             csv_data.append({
                 "Episode": i + 1,
                 "Makespan": makespan,

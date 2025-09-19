@@ -5,11 +5,11 @@ environment:
     fov: 8
     max_steps: 1000
     size: 25
-    num_agents: 3
+    num_agents: 5
     cr: 10
 
 training:
-    module_file: cnn_2conv2linear.py
+    module_file: cnn_2conv2linear_copy.py
     num_episodes: 10000
     target_reward: 10000
     gamma: 0.90
@@ -26,6 +26,6 @@ testing:
     num_episodes_per_map: 10
     seed: 42
     explore: True
-    render: False
-    model_version: v0
+    render: True
+    model_version: v4
     checkpoint: -1

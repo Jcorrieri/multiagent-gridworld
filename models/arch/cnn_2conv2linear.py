@@ -40,16 +40,29 @@ class ActorCriticCNNModel(nn.Module):
             nn.Linear(64, 1)
         )
 
+    @staticmethod
+    def _to_nchw(x):
+            # RLlib usually passes [B,H,W,C]; convert to [B,C,H,W]
+            return x.permute(0, 3, 1, 2) if x.ndim == 4 else x
+
     def forward(self, obs):
         if not hasattr(obs, "ndim"):
-            obs = obs["actor"]
+            a_obs = obs["actor"]
+            c_obs = obs["critic"]
 
-        if obs.ndim == 4 and obs.shape[1] != self.obs_space.shape[-1]:  # PettingZoo obs are [B, H, W, C]
-            obs = obs.permute(0, 3, 1, 2)  # Torch expects [B, C, H, W]
+        if isinstance(obs, dict):
+            a_obs = self._to_nchw(obs["actor"])
+            c_obs = self._to_nchw(obs["critic"])
+        else:
+            x = self._to_nchw(obs)
+            a_obs = c_obs = x
 
-        x = self.conv(obs)
+        # Actor
+        z_pi = self.conv(a_obs)
+        logits = self.actor_head(z_pi)
 
-        logits = self.actor_head(x)
-        value = self.critic_head(x)
+        # Critic
+        z_v = self.conv(c_obs)
+        value = self.critic_head(z_v)
 
         return logits, value

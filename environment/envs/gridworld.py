@@ -27,12 +27,12 @@ class GridWorldEnv(ParallelEnv):
     metadata = {
         "name": "gridworld",
         "render_modes": ["human", "rgb_array"],
-        "render_fps": 24
+        "render_fps": 20
     }
 
     def __init__(self, env_params, **kwargs):
         self.size = env_params.get("size", 25)
-        self.window_size = 512
+        self.window_size = 1024
         self.rng = np.random.default_rng(env_params.get("seed", None))
 
         self._num_agents = env_params.get("num_agents", 5)
@@ -47,6 +47,7 @@ class GridWorldEnv(ParallelEnv):
         self.max_steps = env_params.get("max_steps", 1000)
         self.max_coverage = 0
         self.timestep = 0
+        self.num_disconnects = 0
 
         self.reward_scheme: RewardScheme = env_params.get("reward_scheme", Default())
 
@@ -251,6 +252,7 @@ class GridWorldEnv(ParallelEnv):
         self.visible_tiles = np.zeros((self.size, self.size), dtype=np.uint8)
         self.obs_mat = np.zeros((self.size, self.size), dtype=np.uint8)
         self.timestep = 0
+        self.num_disconnects = 0
 
         # set up initial component map
         initial_map = {
@@ -377,6 +379,9 @@ class GridWorldEnv(ParallelEnv):
 
         self.update_agent_maps()
 
+        if not connected:
+            self.num_disconnects += 1
+
         observations = {}
         infos = {}
         for agent in self.agents:
@@ -416,15 +421,21 @@ class GridWorldEnv(ParallelEnv):
         ]
         return colors[agent_idx % len(colors)]
 
+    def render(self):
+        assert self.render_mode in {"human", "rgb_array"}, \
+            "Set render_mode='human' or 'rgb_array' at make/reset time."
+        return self._render_frame() 
+
     def _render_frame(self):
         """Render the current state of the environment"""
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode((self.window_size, self.window_size))
-            pygame.display.set_caption("Multi-Agent Area Coverage")
+            pygame.display.set_caption("MARCC Demonstration")
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
+        pygame.font.init()
 
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255, 255))  # White background
@@ -538,8 +549,8 @@ class GridWorldEnv(ParallelEnv):
 
         # Display coverage percentage
         coverage = np.sum(self.visited_tiles > 0) / self.max_coverage * 100
-        font = pygame.font.SysFont(None, 30)
-        text = font.render(f"Coverage: {coverage:.1f}% | Step: {self.timestep}", True, (0, 150, 0))
+        font = pygame.font.SysFont(None, 40)
+        text = font.render(f"Coverage: {coverage:.1f}% | Connectivity: {(100 - (self.num_disconnects / (self.timestep + 0.0001) * 100)):.1f}% | Makespan: {self.timestep}", True, (0, 150, 0))
         canvas.blit(text, (10, 10))
 
         if self.render_mode == "human":
@@ -548,9 +559,9 @@ class GridWorldEnv(ParallelEnv):
             pygame.display.update()
             self.clock.tick(self.metadata["render_fps"])
         else:  # rgb_array
-            return np.transpose(
-                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
-            )
+            frame = pygame.surfarray.array3d(canvas)  # shape (W,H,3)
+            frame = np.swapaxes(frame, 0, 1).astype(np.uint8)  # -> (H,W,3)
+            return frame
 
     def close(self):
         """Close the environment"""

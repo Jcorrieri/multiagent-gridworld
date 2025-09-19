@@ -9,22 +9,23 @@ import statistics as stats
 
 # Load
 file_path = "./experiments/baseline/test-results/results.csv"
-folder_path = "./figures/data"
+folder_path = "./"
 files = [
-    # "3_robots_10_cr.csv",
-    # "5_robots_10_cr.csv",
+    "3_robots_10_cr.csv",
+    "5_robots_10_cr.csv",
     # "7_robots_10_cr.csv",
-    # "10_robots_10_cr.csv",
+    "10_robots_10_cr.csv",
     # "12_robots_10_cr.csv",
-    # "15_robots_10_cr.csv",
+    "15_robots_10_cr.csv",
     # "18_robots_10_cr.csv",
+    # "20_robots_10_cr_5_fov.csv",
     # "20_robots_5_cr.csv",
     # "20_robots_10_cr.csv",
     # "20_robots_10_cr_10_fov.csv",
     # "25_robots_10_cr.csv"
-    "5fov.csv",
-    "8fov.csv",
-    "10fov.csv",
+    # "5fov.csv",
+    # "8fov.csv",
+    # "10fov.csv",
 ]
 
 
@@ -66,7 +67,7 @@ our_files = [
     # "15_robots_10_cr.csv",
     # "18_robots_10_cr.csv",
     # "20_robots_5_cr.csv",
-    # "20_robots_10_cr.csv",
+    "20_robots_10_cr.csv",
     # "20_robots_10_cr_10_fov.csv",
     # "25_robots_10_cr.csv"
 ]
@@ -115,8 +116,8 @@ for f in our_files:
     times[1].append(results[f]["time"][1])
     communications[0].append(results[f]["communication"][0])
     communications[1].append(results[f]["communication"][1])
-# labels = x_labels
-labels = ["3", "8", "10"]
+labels = x_labels
+# labels = ["3", "8", "10"]
 
 metrics = [
     "Coverage",
@@ -138,7 +139,7 @@ for title in metrics:
         plt.bar(x, makespans[0], yerr=makespans[1], capsize=12, width=0.8)
 
     # plt.xlabel("Configuration", fontsize=18)
-    plt.xlabel("Sensing Range", fontsize=18)
+    plt.xlabel("Number of Robots", fontsize=18)
     plt.ylabel(title, fontsize=21)
     plt.title(f"", fontsize=21)
     plt.xticks(x, labels, rotation=0, fontsize=18)         
