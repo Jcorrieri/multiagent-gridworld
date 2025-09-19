@@ -5,11 +5,11 @@ decentralized policy design, the learned models generalize seamlessly to larger 
 
 ## Example Episode
 
-<img src="images/1758317395896-78c82d05-caf6-40a0-b7f2-8d9a14d9a2f8_1.png" style="align:center; max-width: 400px" alt="example simulation"/>
+<img src="images/1758317395896-78c82d05-caf6-40a0-b7f2-8d9a14d9a2f8_1.png" style="max-width: 400" alt="example simulation"/>
 
 ## Network Architecture
 
-<img src="images/1758317309192-b8e9903a-95e5-4dff-a1cf-76a3064115c4_1.png" style="max-width: 600px" alt="example simulation"/>
+<img src="images/1758317309192-b8e9903a-95e5-4dff-a1cf-76a3064115c4_1.png" style="max-width: 600" alt="example simulation"/>
 
 ## Installation (Python v3.10)
 
