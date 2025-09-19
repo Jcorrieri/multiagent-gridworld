@@ -3,6 +3,14 @@
 This is a Deep Reinforcement Learning (DRL) framework for multi-robot coverage using Proximal Policy Optimization (PPO) with a centralized critic and decentralized actors (CTDE framework), which maintains connectivity during exploration. Following this framework, each robot learns a local policy based on partial observations, such as LiDAR scans, the visited cell history, and the states of nearby robots, while benefiting from centralized value estimation during training. The combination of convolutional feature extraction, centralized value estimation, and communication-aware reward shaping enables consistently high coverage and connectivity among multiple robots. This approach scales effectively with team size: we demonstrated successful training with up to 20 robots, and thanks to the
 decentralized policy design, the learned models generalize seamlessly to larger teams, achieving reliable performance with up to 50 robots at test time.
 
+## Example Episode
+
+<img src="images/1758317395896-78c82d05-caf6-40a0-b7f2-8d9a14d9a2f8_1.png" style="align:center; max-width: 400px" alt="example simulation"/>
+
+## Network Architecture
+
+<img src="images/1758317309192-b8e9903a-95e5-4dff-a1cf-76a3064115c4_1.png" style="max-width: 600px" alt="example simulation"/>
+
 ## Installation (Python v3.10)
 
 **Install Pytorch with CUDA support (Required)**
