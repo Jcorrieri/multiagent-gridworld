@@ -1,6 +1,7 @@
 # Multi-Robot Exploration with RLlib
 
-This is a Deep Reinforcement Learning (DRL) framework for coordinating a team of robots to explore an unknown grid-world environment while maintaining a connected communication network. The proposed system adapts a multi-agent actor-critic algorithm (Multi-Agent PPO) using Ray RLlib’s legacy API and PettingZoo (Gymnasium) for environment modeling. Inspired by a MATLAB-based area coverage example, this project extends the task to include communication constraints by modifying the reward function.
+This is a Deep Reinforcement Learning (DRL) framework for multi-robot coverage using Proximal Policy Optimization (PPO) with a centralized critic and decentralized actors (CTDE framework), which maintains connectivity during exploration. Following this framework, each robot learns a local policy based on partial observations, such as LiDAR scans, the visited cell history, and the states of nearby robots, while benefiting from centralized value estimation during training. The combination of convolutional feature extraction, centralized value estimation, and communication-aware reward shaping enables consistently high coverage and connectivity among multiple robots. This approach scales effectively with team size: we demonstrated successful training with up to 20 robots, and thanks to the
+decentralized policy design, the learned models generalize seamlessly to larger teams, achieving reliable performance with up to 50 robots at test time.
 
 ## Installation (Python v3.10)
 
