@@ -9,7 +9,7 @@ environment:
     cr: 10
 
 training:
-    module_file: cnn_2conv2linear_copy.py
+    module_file: cnn_2conv2linear.py
     num_episodes: 10000
     target_reward: 10000
     gamma: 0.90

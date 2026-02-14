@@ -7,7 +7,6 @@ from ray.rllib.models import ModelCatalog
 
 from environment.envs.baseline import BaselineEnv
 
-import imageio.v2 as imageio
 import numpy as np
 
 from environment.envs.gridworld import GridWorldEnv

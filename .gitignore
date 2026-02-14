@@ -2,11 +2,8 @@
 .idea/
 __pycache__/
 models/__pycache__/
+**/copilot-instructions.md
 *.iml
-/experiments/*/*/ckpt/
-/experiments/gridworld/*
-!/experiments/gridworld/v4/
-/models/arch/*
-!/models/arch/cnn_2conv2linear.py
-/myenv/
+**/ckpt
+**/saved
 bfg-1.15.0.jar
