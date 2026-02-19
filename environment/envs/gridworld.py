@@ -90,10 +90,11 @@ class GridWorldEnv(ParallelEnv):
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent: AgentID) -> gymnasium.spaces.Space:
         """Return observation space for a specific agent"""
-        # WxHxC observation space with binary values
+        # WxHxC observation space with binary values plus an agent-id one-hot
         return spaces.Dict({
-            "actor": spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32),
-            "critic": spaces.Box(low=0, high=1, shape=(self.size, self.size, 4), dtype=np.float32),
+            #"actor": spaces.Box(low=0, high=1.0, shape=(self.size, self.size, 4), dtype=np.float32), -- DISABLED for DQN
+            "critic": spaces.Box(low=0, high=1.0, shape=(self.size, self.size, 4), dtype=np.float32),
+            "agent_id": spaces.Box(low=0.0, high=1.0, shape=(self._num_agents,), dtype=np.float32),
         })
 
     @functools.lru_cache(maxsize=None)
@@ -167,9 +168,15 @@ class GridWorldEnv(ParallelEnv):
         actor_obs[:, :, 3] = component_map["visited_tiles"]
         critic_obs[:, :, 3] = self.visited_tiles  # critic sees full coverage map
 
+        # Agent id one-hot vector
+        agent_idx = int(agent.split("_")[1])
+        agent_id_vec = np.zeros((self._num_agents,), dtype=np.float32)
+        agent_id_vec[agent_idx] = 1.0
+
         return {
-            "actor": actor_obs,
-            "critic": critic_obs
+            # "actor": actor_obs, -- DISABLED for DQN
+            "critic": critic_obs,
+            "agent_id": agent_id_vec,
         }
 
     def update_agent_maps(self):

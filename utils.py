@@ -12,7 +12,7 @@ from environment.rewards import *
 
 def parse_optimizer(parser):
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--config', type=str, default='default')
+    parser.add_argument('--config', type=str, default='dqn')
 
 def register_envs():
     register_ray_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
@@ -24,6 +24,8 @@ def make_reward_scheme(module) -> RewardScheme:
         return ExplorerMaintainer()
     elif module == "components":
         return Components()
+    elif module == "pure_coverage":
+        return PureCoverage()
     else:
         return Default()
 

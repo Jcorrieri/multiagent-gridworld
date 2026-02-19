@@ -1,0 +1,29 @@
+environment:
+    env_name: gridworld
+    reward_scheme: pure_coverage
+    base_station: False
+    fov: 8
+    max_steps: 1000
+    size: 25
+    num_agents: 5
+    cr: 10
+
+training:
+    module_file: dqn_cnn.py 
+    gamma: 0.90             
+    lr: 0.0001              
+    train_batch_size: 32    
+    buffer_size: 50000     
+    learning_starts: 1000   
+    target_network_update_freq: 1500
+    num_steps: 1_750_000
+    steps: 30
+    target_reward: 1050
+
+testing:
+    num_episodes_per_map: 10
+    seed: 42
+    explore: True
+    render: True
+    model_version: v5
+    checkpoint: -1

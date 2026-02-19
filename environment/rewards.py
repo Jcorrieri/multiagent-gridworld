@@ -33,6 +33,24 @@ class Default(RewardScheme):
 
             agent_rewards[agent] += timestep_penalty
 
+class PureCoverage(RewardScheme):
+    def calculate_rewards(self, agent_rewards, step_info, env):
+        collisions = step_info["collisions"] 
+
+        exploration_reward = 1.0
+        collision_penalty = -1.0
+        revisit_penalty = 0.1
+
+        for agent in env.agents:
+            if collisions[agent]:
+                agent_rewards[agent] += collision_penalty
+
+            agent_loc = env.agent_locations[agent]
+            if env.visited_tiles[agent_loc[0], agent_loc[1]] == 0:  # individual
+                agent_rewards[agent] += exploration_reward
+            else:
+                agent_rewards[agent] += revisit_penalty
+
 # class Coverage(RewardScheme):
 #     def calculate_rewards(self, agent_rewards, step_info, env):
 #             connected = step_info["connected"]

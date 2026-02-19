@@ -4,78 +4,93 @@ import shutil
 
 import numpy as np
 
-from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.algorithms.dqn.dqn import DQNConfig
 from ray.rllib.models import ModelCatalog
-from ray.rllib.policy.policy import PolicySpec
-from pettingzoo import ParallelEnv
 
-from test import build_algo
 from utils import make_env, plot_metrics
 from models.rl_wrapper import CustomTorchModelV2
-
 
 def build_config(env_config: dict, training_config: dict):
     dummy_env = make_env(env_config)
 
-    ppo_params = training_config.copy()
-    ppo_params.pop('module_file')
-    ppo_params.pop('num_episodes')
-    ppo_params.pop('target_reward')
-
-    if training_config.get('l2_regularization'):
-        optimizer = {"weight_decay": training_config['l2_regularization']}
-        ppo_params.pop('l2_regularization')
-        ppo_params['optimizer'] = optimizer
+    # Filter and map parameters for DQN
+    dqn_params = {
+        "gamma": training_config.get("gamma", 0.90),
+        "lr": training_config.get("lr", 0.0001),
+        "train_batch_size": training_config.get("train_batch_size", 32),
+        "buffer_size": training_config.get("buffer_size", 50000),
+        "target_network_update_freq": training_config.get("target_network_update_freq", 1500),
+        "steps": training_config.get("steps", 30)
+    }
 
     config = get_default_config(
         env_config,
-        ppo_params,
-        training_config.get("module_file", "cnn_2conv2linear.py"),
+        dqn_params,
+        training_config.get("module_file", "dqn_cnn.py"),
         dummy_env
     )
 
     dummy_env.close()
-    # config.log_level = "DEBUG"
     return config.build_algo()
 
-def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dummy_env: ParallelEnv) -> PPOConfig:
+def get_default_config(env_config: dict, training_params: dict, module_file: str, dummy_env):
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
 
     config = (
-        PPOConfig()
+        DQNConfig()
         .environment(
             env=env_config.get("env_name", "gridworld"),
             env_config=env_config,
         )
         .framework("torch")
-        .multi_agent(
-            policies={
-                "shared_policy": PolicySpec(
-                    policy_class=None,  # Default to PPO
-                    observation_space=dummy_env.observation_space("agent_0"),
-                    action_space=dummy_env.action_space("agent_0"),
-                )
-            },
-            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy"
-        )
         .training(
+            gamma=training_params["gamma"],
+            lr=training_params["lr"],
+            train_batch_size=training_params["train_batch_size"],
+
+            double_q=True, 
+            dueling=False,
+
+            replay_buffer_config={
+                'type': "MultiAgentPrioritizedReplayBuffer",
+                'prioritized_replay_alpha': 0.6,
+                'capacity': training_params["buffer_size"]
+            },
+
+            target_network_update_freq=training_params["target_network_update_freq"],   
+
             model={
                 "custom_model": "shared_cnn",
                 "custom_model_config": {
                     "module_file": module_file,
+                    "num_agents": env_config.get("num_agents", 5),
                     "disable_preprocessor": True
                 },
-                "vf_share_layers": False,
             },
-            use_gae=True,
-            use_critic=True,
-            **ppo_params
+        )
+        .exploration(
+            exploration_config={
+                "type": "EpsilonGreedy",
+                "initial_epsilon": 1.0,
+                "final_epsilon": 0.01,
+                "epsilon_timesteps": 875000,
+            }
+        )
+        .multi_agent(
+            policies={
+                "shared_policy": (
+                    None, 
+                    dummy_env.observation_space("agent_0"), 
+                    dummy_env.action_space("agent_0"), 
+                    {}
+                )
+            },
+            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy"
         )
         .env_runners(
             num_env_runners=6,
-            num_envs_per_env_runner=1,
-            rollout_fragment_length="auto",
-            sample_timeout_s=120
+            num_envs_per_env_runner=4,
+            rollout_fragment_length=training_params["steps"], # match 'steps' param in paper
         )
         .resources(
             num_gpus=1
@@ -92,7 +107,6 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
             enable_rl_module_and_learner=False,
         )
     )
-
     return config
 
 def create_model_directories(env_config: dict, args: argparse.Namespace):
@@ -154,24 +168,25 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print("-"*100 + "\n\nBeginning Training...\n")
 
     max_rew_iter_count = 0
-    ckpt_interval = 200
+    ckpt_interval = 500_000
     target_rew = training_config["target_reward"]
     best_score = -np.inf
 
-    num_episodes = training_config["num_episodes"]
+    num_steps = training_config["num_steps"]
     train_batch_size = training_config["train_batch_size"]
     max_steps = env_config["max_steps"]
 
     data = []
     episodes_elapsed = 0
-    num_iterations = int(num_episodes * max_steps / train_batch_size)
-    for i in range(num_iterations):
+    current_steps = 0
+    while current_steps < num_steps:
         result = trainer.train()
 
         episode_reward_mean = result["env_runners"]["episode_reward_mean"]
         episode_len_mean = result["env_runners"]["episode_len_mean"]
         episodes_elapsed += result["env_runners"]["num_episodes"]
-        print(f"\rIteration {i + 1}/{num_iterations}, "
+        current_steps = result["timesteps_total"]
+        print(f"\rEpisodes: {current_steps}/{num_steps}, "
               f"episode: {episodes_elapsed}, "
               f"total reward: {episode_reward_mean:.2f}, "
               f"average length: {episode_len_mean:.2f}", end="")
@@ -179,11 +194,12 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
         data.append([episode_reward_mean, episode_len_mean, episodes_elapsed])
 
         # save checkpoint
-        if i != 0 and i % ckpt_interval == 0:
-            index = i // ckpt_interval
+        if current_steps >= ckpt_interval:
+            index = current_steps // ckpt_interval
             full_ckpt_dir = os.path.join(ckpt_dir, str(index))
             os.makedirs(full_ckpt_dir, exist_ok=True)
             trainer.save_checkpoint(full_ckpt_dir)
+            ckpt_interval += 500_000
 
         # stop training if the average reward reaches target for 20 consecutive iterations
         if episode_reward_mean >= target_rew:

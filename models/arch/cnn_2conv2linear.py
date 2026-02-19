@@ -46,10 +46,6 @@ class ActorCriticCNNModel(nn.Module):
             return x.permute(0, 3, 1, 2) if x.ndim == 4 else x
 
     def forward(self, obs):
-        if not hasattr(obs, "ndim"):
-            a_obs = obs["actor"]
-            c_obs = obs["critic"]
-
         if isinstance(obs, dict):
             a_obs = self._to_nchw(obs["actor"])
             c_obs = self._to_nchw(obs["critic"])
