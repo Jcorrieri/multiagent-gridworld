@@ -55,6 +55,22 @@ Run ```python main.py --test``` to begin testing.
 For the baseline, I implemented the following paper: [Multi-robot exploration under the constraints of wireless networking](https://www.sciencedirect.com/science/article/pii/S0967066106001547#bib16)
 - To test the baseline, change ```environment:env_name``` to "baseline" in the config file. This does not use a trained model.
 
+
+### Pure Coverage Algorithm
+
+We compare our model against a pure area coverage algorithm to see the effect of our reward shaping on connectivity. This is in the coverage-baseline branch.
+
+Paper:
+Ahmad Din, Muhammed Yousoof Ismail, Babar Shah, Mohammad Babar, Farman Ali, Siddique Ullah Baig,
+A deep reinforcement learning-based multi-agent area coverage control for smart agriculture,
+Computers and Electrical Engineering,
+Volume 101,
+2022,
+108089,
+ISSN 0045-7906,
+https://doi.org/10.1016/j.compeleceng.2022.108089.
+(https://www.sciencedirect.com/science/article/pii/S0045790622003445)
+
 ### Additional Notes
 
 - Use ```utils.gen_train_test_split()``` to generate 100 new maps for training and testing.

@@ -29,5 +29,5 @@ testing:
     seed: 42
     explore: True
     render: False
-    model_version: v5
+    model_version: v6
     checkpoint: -1

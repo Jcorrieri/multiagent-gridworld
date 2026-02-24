@@ -5,7 +5,7 @@ environment:
     fov: 8
     max_steps: 1000
     size: 25
-    num_agents: 20
+    num_agents: 3
     cr: 10
 
 training:
@@ -16,18 +16,13 @@ training:
     buffer_size: 50000     
     learning_starts: 1000   
     target_network_update_freq: 1500
-    epsilon: [
-        [0, 1.0], 
-        [35_000_000, 0.01],
-        [70_000_000, 0.01]
-    ]
     num_epochs: 3500
-    target_reward: 15000
+    target_reward: 1500
 
 testing:
     num_episodes_per_map: 10
     seed: 42
     explore: True
     render: False
-    model_version: v5
+    model_version: v2
     checkpoint: -1

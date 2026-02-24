@@ -52,7 +52,7 @@ class DQNModel(nn.Module):
 
     def forward(self, obs, agent_id):   
         if isinstance(obs, dict):
-            x = self._to_nchw(obs["critic"]) # here, fu1ll obs is expected
+            x = self._to_nchw(obs["critic"]) # here, full obs is expected
         else:
             x = self._to_nchw(obs)
         

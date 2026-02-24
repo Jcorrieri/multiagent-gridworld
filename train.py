@@ -19,8 +19,8 @@ def build_config(env_config: dict, training_config: dict):
         "lr": training_config.get("lr", 0.0001),
         "train_batch_size": training_config.get("train_batch_size", 32),
         "buffer_size": training_config.get("buffer_size", 50000),
-        "target_network_update_freq": training_config.get("target_network_update_freq", 1500),
-        "steps": training_config.get("steps", 30)
+        "epsilon": training_config.get("epsilon", [[0, 1.0], [17500000, 0.01], [35000000, 0.01]]),
+        "target_network_update_freq": training_config.get("target_network_update_freq", 1500)
     }
 
     config = get_default_config(
@@ -57,6 +57,8 @@ def get_default_config(env_config: dict, training_params: dict, module_file: str
                 'capacity': training_params["buffer_size"]
             },
 
+            epsilon=training_params["epsilon"],
+
             target_network_update_freq=training_params["target_network_update_freq"],   
 
             model={
@@ -67,14 +69,6 @@ def get_default_config(env_config: dict, training_params: dict, module_file: str
                     "disable_preprocessor": True
                 },
             },
-        )
-        .exploration(
-            exploration_config={
-                "type": "EpsilonGreedy",
-                "initial_epsilon": 1.0,
-                "final_epsilon": 0.01,
-                "epsilon_timesteps": 875000,
-            }
         )
         .multi_agent(
             policies={
@@ -90,7 +84,7 @@ def get_default_config(env_config: dict, training_params: dict, module_file: str
         .env_runners(
             num_env_runners=6,
             num_envs_per_env_runner=4,
-            rollout_fragment_length=training_params["steps"], # match 'steps' param in paper
+            rollout_fragment_length="auto", # match 'steps' param in paper
         )
         .resources(
             num_gpus=1
@@ -167,39 +161,35 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
 
     print("-"*100 + "\n\nBeginning Training...\n")
 
+    num_epochs = training_config["num_epochs"]
+
     max_rew_iter_count = 0
-    ckpt_interval = 500_000
+    ckpts = np.linspace(0, num_epochs, num=5, dtype=int)
+    ckpt_idx = 0
     target_rew = training_config["target_reward"]
     best_score = -np.inf
 
-    num_steps = training_config["num_steps"]
-    train_batch_size = training_config["train_batch_size"]
-    max_steps = env_config["max_steps"]
-
     data = []
     episodes_elapsed = 0
-    current_steps = 0
-    while current_steps < num_steps:
+    while episodes_elapsed < num_epochs:
         result = trainer.train()
 
         episode_reward_mean = result["env_runners"]["episode_reward_mean"]
         episode_len_mean = result["env_runners"]["episode_len_mean"]
         episodes_elapsed += result["env_runners"]["num_episodes"]
         current_steps = result["timesteps_total"]
-        print(f"\rEpisodes: {current_steps}/{num_steps}, "
-              f"episode: {episodes_elapsed}, "
+        print(f"\rEpisode: {episodes_elapsed}/{num_epochs}, "
+            #   f"episode: {episodes_elapsed}, "
               f"total reward: {episode_reward_mean:.2f}, "
               f"average length: {episode_len_mean:.2f}", end="")
 
         data.append([episode_reward_mean, episode_len_mean, episodes_elapsed])
 
-        # save checkpoint
-        if current_steps >= ckpt_interval:
-            index = current_steps // ckpt_interval
-            full_ckpt_dir = os.path.join(ckpt_dir, str(index))
+        if episodes_elapsed >= ckpts[ckpt_idx]:
+            full_ckpt_dir = os.path.join(ckpt_dir, str(ckpt_idx))
             os.makedirs(full_ckpt_dir, exist_ok=True)
             trainer.save_checkpoint(full_ckpt_dir)
-            ckpt_interval += 500_000
+            ckpt_idx += 1
 
         # stop training if the average reward reaches target for 20 consecutive iterations
         if episode_reward_mean >= target_rew:

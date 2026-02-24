@@ -40,12 +40,7 @@ class CustomTorchModelV2(TorchModelV2, nn.Module):
     def forward(self, input_dict, state, seq_lens):
         obs = input_dict["obs"]
         
-        if isinstance(obs, dict):
-            agent_id_batch = obs["agent_id"] 
-        else:
-            # Fallback if agent_id isn't in this specific dict
-            agent_id_batch = torch.zeros((obs.shape[0], self.network.num_agents), device=obs.device)
-            agent_id_batch[:, 0] = 1 
+        agent_id_batch = obs["agent_id"]
 
         agent_indices = torch.argmax(agent_id_batch, dim=-1)
             
