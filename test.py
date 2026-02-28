@@ -26,6 +26,9 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
     coverage, total_reward, makespan, num_breaks = 0, 0, 0, 0
     start_ns = time.perf_counter_ns()
 
+    disconnection_data = []
+    conn_prev_broken = False
+
     while not episode_over:
         actions = {
             agent: model.compute_single_action(
@@ -46,6 +49,17 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
         makespan += 1
         if infos['agent_0']['connection_broken']:
             num_breaks += 1
+            if not conn_prev_broken:
+                disconn_event = {
+                    "broken_start": infos['agent_0']['step'],
+                    "broken_end": None,
+                }
+                disconnection_data.append(disconn_event)
+                conn_prev_broken = True
+        else:
+            if conn_prev_broken:
+                disconnection_data[-1]["broken_end"] = infos['agent_0']['step']
+                conn_prev_broken = False
 
         # print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(total_reward, 2), end="")
 
@@ -57,7 +71,7 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
 
     # writer.close()
 
-    return total_reward, makespan, coverage, communication_ratio, elapsed_ms
+    return total_reward, makespan, coverage, communication_ratio, elapsed_ms, disconnection_data
 
 def build_algo(test_config) -> tuple[Algorithm, str]:
     model = test_config.get('model_version', "v0")
@@ -100,16 +114,24 @@ def test(env_config, test_config) -> None:
     num_episodes = num_maps * num_episodes_per_map
 
     csv_data = []
+    disconn_csv_data = []
     if num_episodes > 0:
         print(f"Running {num_episodes} test episodes")
         game_env = make_env(env_config)
 
         for i in range(num_episodes):
             print(f"\r{i}/{num_episodes}", end="", flush=True)
-            reward, makespan, coverage, communication_ratio, elapsed_ms = test_one_episode(
+            reward, makespan, coverage, communication_ratio, elapsed_ms, disconnection_data = test_one_episode(
                 game_env, tester, test_config.get("explore", False)
             )
             
+            for event in disconnection_data:
+                disconn_csv_data.append({
+                    "Episode": i + 1,
+                    "Broken_Start": event["broken_start"],
+                    "Broken_End": event["broken_end"],
+                })
+
             csv_data.append({
                 "Episode": i + 1,
                 "Makespan": makespan,
