@@ -53,12 +53,14 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
                 disconn_event = {
                     "broken_start": infos['agent_0']['step'],
                     "broken_end": None,
+                    "steps_broken": 0
                 }
                 disconnection_data.append(disconn_event)
                 conn_prev_broken = True
         else:
             if conn_prev_broken:
                 disconnection_data[-1]["broken_end"] = infos['agent_0']['step']
+                disconnection_data[-1]["steps_broken"] = disconnection_data[-1]["broken_end"] - disconnection_data[-1]["broken_start"]
                 conn_prev_broken = False
 
         # print("\rStep reward:", round(sum(rewards.values()), 2), "Total reward:", round(total_reward, 2), end="")
@@ -130,6 +132,7 @@ def test(env_config, test_config) -> None:
                     "Episode": i + 1,
                     "Broken_Start": event["broken_start"],
                     "Broken_End": event["broken_end"],
+                    "Steps_Broken": event["steps_broken"],
                 })
 
             csv_data.append({
@@ -147,11 +150,16 @@ def test(env_config, test_config) -> None:
         comm_range = env_config["cr"]
 
         metrics_path = os.path.join("experiments", model_dir, "test-results", f"{num_agents}_robots_{comm_range}_cr.csv")
+        disconn_metrics_path = os.path.join("experiments", model_dir, "test-results", f"{num_agents}_robots_{comm_range}_cr_disconnections.csv")
         os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
 
         columns = ["Episode", "Makespan", "Coverage", "Communication_Ratio", "Inference_Time_ms"]
         df = pd.DataFrame(csv_data, columns=columns)
 
+        columns = ["Episode", "Broken_Start", "Broken_End", "Steps_Broken"]
+        df_disconn = pd.DataFrame(disconn_csv_data, columns=columns)
+
         df.to_csv(metrics_path, index=False, mode='w', header=True)
+        df_disconn.to_csv(disconn_metrics_path, index=False, mode='w', header=True)
 
         print(f"Results saved to {metrics_path}")
