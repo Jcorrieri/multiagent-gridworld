@@ -10,8 +10,9 @@ from ray.rllib.policy.policy import PolicySpec
 from pettingzoo import ParallelEnv
 
 from test import build_algo
-from utils import make_env, plot_metrics
 from models.rl_wrapper import CustomTorchModelV2
+from utils.environments import make_env
+from utils.plotting import plot_metrics
 
 
 def build_config(env_config: dict, training_config: dict):

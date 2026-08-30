@@ -6,7 +6,8 @@ import yaml
 
 from test import test
 from train import train
-from utils import parse_optimizer, register_envs, make_reward_scheme
+from utils.cli import parse_optimizer
+from utils.environments import make_reward_scheme, register_envs
 
 
 def main():

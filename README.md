@@ -34,12 +34,15 @@ Specify the environment parameters for training and testing. The map size must r
 
 ### Training
 
-- Select a neural network architecture from ```models/arch/``` using the ```module_file``` parameter.
+- Select a neural network architecture from ```src/models/arch/``` using the
+  ```module_file``` parameter.
 - Note that, when specifying an entropy_coeff schedule, you should multiply each timestep value by ```num_agents``` to get an accurate schedule during training.
   - The schedule uses a format of [[timestep, value], ..., [timestep, value]].
 - Model checkpoints, results, and a copy of the config file will be saved under ```experiment/<env_name>/<verion>```.
 
-When everything is set as you prefer in the config file, run ```python main.py```. You can view live metrics by running ```tensorboard --logdir=~\ray_results``` and selecting the latest run.
+When everything is set as you prefer in the config file, run ```python src/main.py```. You can
+view live metrics by running ```tensorboard --logdir=~\ray_results``` and selecting the latest
+run.
 
 ### Testing
 
@@ -48,7 +51,7 @@ When everything is set as you prefer in the config file, run ```python main.py``
 - Set ```explore: True``` to enable some stochasticity.
 - A csv file with various results will be saved at ```...model_path/test-results/```
 
-Run ```python main.py --test``` to begin testing.
+Run ```python src/main.py --test``` to begin testing.
 
 ### Testing the Baseline
 
@@ -61,8 +64,8 @@ For the baseline, I implemented the following paper: [Multi-robot exploration un
   - Tune obstacle densities by modifying the function.
 - Define new reward schemes and modify existing ones in ```environment_rewards.py```. Add new schemes to ```utils.make_reward_scheme``` to use them in your config.
 - Add custom configuration files under ```config/``` and use ```--config <file_name>``` to specify during training and testing.
-  - ```python main.py --config <custom_config>```
-  - ```python main.py --test --config <custom_config>```
+  - ```python src/main.py --config <custom_config>```
+  - ```python src/main.py --test --config <custom_config>```
 - See the [Ray RLlib documentation](https://docs.ray.io/en/latest/rllib/index.html) for ray-specific info. I use the old stack (not RLModule).
 
 ## Project Structure
@@ -104,14 +107,15 @@ For the baseline, I implemented the following paper: [Multi-robot exploration un
 │       │   └── ...
 │       └── ...
 │
-├── models/                                         # neural network architectures
-│   ├── arch/
-│   │   ├── cnn_2conv2linear.py
-│   │   └── ...                        
-│   └── rl_wrapper.py                               # wrapper for Ray RLlib
-│
-├── main.py                                         # main entry point for training and testing
-├── test.py                                         
-├── train.py
-└── utils.py                                        # handles arguments, environments, and metrics
+└── src/
+    ├── environment/                                # environments and reward schemes
+    ├── models/                                     # neural network architectures
+    │   ├── arch/
+    │   │   ├── cnn_2conv2linear.py
+    │   │   └── ...
+    │   └── rl_wrapper.py                           # wrapper for Ray RLlib
+    ├── utils/                                      # focused utility modules
+    ├── main.py                                     # main entry point for training and testing
+    ├── test.py
+    └── train.py
 ```

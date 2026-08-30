@@ -15,7 +15,7 @@ class CustomTorchModelV2(TorchModelV2, nn.Module):
         if ".py" not in module_file:
             module_file += ".py"
         # get torch model from config
-        models_dir = os.path.abspath("models/arch")
+        models_dir = os.path.join(os.path.dirname(__file__), "arch")
         module_path = os.path.join(models_dir, module_file)
         module_name = os.path.splitext(os.path.basename(module_path))[0]
         spec = importlib.util.spec_from_file_location(module_name, module_path)

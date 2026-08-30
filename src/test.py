@@ -11,7 +11,7 @@ import numpy as np
 
 from environment.envs.gridworld import GridWorldEnv
 from models.rl_wrapper import CustomTorchModelV2
-from utils import make_env
+from utils.environments import make_env
 
 
 def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, explore: bool):

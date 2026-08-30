@@ -1,59 +1,8 @@
-import os.path
-import numpy as np
-import random
 from collections import deque
-import matplotlib.pyplot as plt
-from ray.rllib.env import ParallelPettingZooEnv
-from ray.tune import register_env as register_ray_env
+import os.path
+import random
 
-from environment.envs.baseline import BaselineEnv
-from environment.envs.gridworld import GridWorldEnv
-from environment.rewards import *
-
-def parse_optimizer(parser):
-    parser.add_argument('--test', action='store_true')
-    parser.add_argument('--config', type=str, default='default')
-
-def register_envs():
-    register_ray_env("gridworld", lambda cfg: ParallelPettingZooEnv(GridWorldEnv(cfg)))
-
-def make_reward_scheme(module) -> RewardScheme:
-    if module == "coverage":
-        return Coverage()
-    elif module == "explorer_maintainer":
-        return ExplorerMaintainer()
-    elif module == "components":
-        return Components()
-    else:
-        return Default()
-
-def make_env(env_config: dict):
-    name = env_config.get('env_name', 'default')
-    if name == "baseline":
-        return BaselineEnv(env_config)
-    else:
-        return GridWorldEnv(env_config)
-
-def plot_metrics(metrics: list[tuple[float, float]], path: str):
-    mean_rewards = [m[0] for m in metrics]
-    mean_lengths = [m[1] for m in metrics]
-    episode = [m[2] for m in metrics]
-
-    fig, axs = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-
-    axs[0].plot(episode, mean_rewards, label="Mean Reward", color='blue')
-    axs[0].set_ylabel("Mean Reward")
-    axs[0].set_title("Training Progress")
-    axs[0].grid(True)
-
-    axs[1].plot(episode, mean_lengths, label="Mean Episode Length", color='green')
-    axs[1].set_xlabel("Episode")
-    axs[1].set_ylabel("Mean Episode Length")
-    axs[1].grid(True)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(path, "metrics_plot.png"))
-    print(f"Saved training plot to {path}\\metrics_plot.png")
+import numpy as np
 
 def generate_obstacles(grid_size=25, obstacle_density=0.10, max_attempts=100, seed=None):
     if seed is not None:
