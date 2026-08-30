@@ -18,13 +18,10 @@ from utils.plotting import plot_metrics
 def build_config(env_config: dict, training_config: dict):
     dummy_env = make_env(env_config)
 
-    ppo_params = training_config.copy()
-    ppo_params.pop('module_file')
-    ppo_params.pop('num_episodes')
-    ppo_params.pop('target_reward')
+    ppo_params = training_config['ppo'].copy()
 
-    if training_config.get('l2_regularization'):
-        optimizer = {"weight_decay": training_config['l2_regularization']}
+    if ppo_params.get('l2_regularization'):
+        optimizer = {"weight_decay": ppo_params['l2_regularization']}
         ppo_params.pop('l2_regularization')
         ppo_params['optimizer'] = optimizer
 
@@ -160,7 +157,7 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     best_score = -np.inf
 
     num_episodes = training_config["num_episodes"]
-    train_batch_size = training_config["train_batch_size"]
+    train_batch_size = training_config["ppo"]["train_batch_size"]
     max_steps = env_config["max_steps"]
 
     data = []
