@@ -6,13 +6,13 @@ import yaml
 
 from test import test
 from train import train
-from utils.cli import parse_optimizer
 from utils.environments import make_reward_scheme, register_envs
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parse_optimizer(parser)
+    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--config', type=str, default='default')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

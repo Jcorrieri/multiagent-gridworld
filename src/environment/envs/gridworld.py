@@ -574,7 +574,7 @@ if __name__ == "__main__":
 
     env = GridWorldEnv({
         'render_mode': "human",
-        'map_dir_path': 'environment/obstacle-mats/testing',
+        'map_dir_path': 'maps/testing',
         'base_station': False,
         'fov': 8,
         'num_agents': 5,
