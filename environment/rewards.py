@@ -33,28 +33,6 @@ class Default(RewardScheme):
 
             agent_rewards[agent] += timestep_penalty
 
-# class Coverage(RewardScheme):
-#     def calculate_rewards(self, agent_rewards, step_info, env):
-#             connected = step_info["connected"]
-#             collisions = step_info["collisions"]
-#             coverage = (step_info['coverage'] / 100)
-#             prev_coverage = (step_info['prev_coverage'] / 100)
-
-#             exploration_reward = max(0.0, coverage - prev_coverage) * 100 / env.num_agents
-#             disconnection_penalty = -1.0 / env.num_agents
-#             obstacle_penalty = -0.1
-#             timestep_penalty = 0.00
-            
-#             for agent in env.agents:
-#                 if collisions[agent]:
-#                     agent_rewards[agent] += obstacle_penalty
-
-#                 if not connected:
-#                     agent_rewards[agent] += disconnection_penalty / env.num_agents
-
-#                 agent_rewards[agent] += exploration_reward + timestep_penalty
-
-#--- Used for v4 (LATEST GLOBAL MODEL)
 class Coverage(RewardScheme):
     def calculate_rewards(self, agent_rewards, step_info, env):
         connected = step_info["connected"]

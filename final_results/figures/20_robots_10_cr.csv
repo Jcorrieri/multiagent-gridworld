@@ -1,2 +1,0 @@
-Num_episodes_per_map,Num_Robots,Base_Station,Avg_Reward,Std_Reward,Avg_Num_Disconnects,Std_Num_Disconnects,Avg_Connection_Percent,Avg_Time,Std_Time,Communication_Ratio,Avg_Duration_Steps,Std_Duration_Steps,Avg_Coverage_Percent,Std_Coverage_Percent
-10,20,False,1739.7,584.334814449561,7.85,26.602708361826,99.1,51.0741504864881,14.673162861842,34.6,873.51,250.915897022802,99.63,0.398342055004955

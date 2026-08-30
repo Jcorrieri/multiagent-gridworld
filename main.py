@@ -50,5 +50,4 @@ def main():
         train(args, env_config, config['training'])
 
 if __name__ == "__main__":
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
     main()
