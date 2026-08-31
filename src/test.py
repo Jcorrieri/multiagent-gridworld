@@ -1,5 +1,4 @@
 import argparse
-import os.path
 import time
 from pathlib import Path
 
@@ -80,22 +79,22 @@ def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, exp
 
     return total_reward, makespan, coverage, communication_ratio, elapsed_ms, disconnection_data
 
-def build_algo(test_config) -> tuple[Algorithm, str]:
+def build_algo(test_config) -> tuple[Algorithm, Path]:
     model = test_config.get('model_version', "v0")
-    checkpoint_dir = os.path.join("experiments", "gridworld", model)
+    checkpoint_dir = Path("experiments", "gridworld", model)
     if test_config.get('checkpoint', -1) >= 0:
-        checkpoint_dir = os.path.join(checkpoint_dir, "ckpt", str(test_config['checkpoint']))
+        checkpoint_dir /= Path("ckpt", str(test_config['checkpoint']))
     else:
-        checkpoint_dir = os.path.join(checkpoint_dir, "saved")
+        checkpoint_dir /= "saved"
 
-    checkpoint_dir = os.path.abspath(checkpoint_dir)
-    if not os.path.exists(checkpoint_dir):
+    checkpoint_dir = checkpoint_dir.resolve()
+    if not checkpoint_dir.exists():
         raise FileNotFoundError("Model does not exist, please check \'model_version\' in the config file.")
 
     ModelCatalog.register_custom_model("shared_cnn", CustomTorchModelV2)
     tester = Algorithm.from_checkpoint(checkpoint_dir)
 
-    return tester, os.path.join("gridworld", model)
+    return tester, Path("gridworld", model)
 
 def test(env_config, test_config) -> None:
     env_config["seed"] = test_config.get("seed", 42)
@@ -154,9 +153,12 @@ def test(env_config, test_config) -> None:
         num_agents = env_config["num_agents"]
         comm_range = env_config["cr"]
 
-        metrics_path = os.path.join("experiments", model_dir, "test-results", f"{num_agents}_robots_{comm_range}_cr.csv")
-        disconn_metrics_path = os.path.join("experiments", model_dir, "test-results", f"{num_agents}_robots_{comm_range}_cr_disconnections.csv")
-        os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+        results_dir = Path("experiments", model_dir, "test-results")
+        metrics_path = results_dir / f"{num_agents}_robots_{comm_range}_cr.csv"
+        disconn_metrics_path = (
+            results_dir / f"{num_agents}_robots_{comm_range}_cr_disconnections.csv"
+        )
+        results_dir.mkdir(parents=True, exist_ok=True)
 
         columns = ["Episode", "Makespan", "Coverage", "Communication_Ratio", "Inference_Time_ms"]
         df = pd.DataFrame(csv_data, columns=columns)

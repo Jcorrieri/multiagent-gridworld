@@ -1,4 +1,4 @@
-import os.path
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 
@@ -21,5 +21,5 @@ def plot_metrics(metrics: list[tuple[float, float]], path: str):
     axs[1].grid(True)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(path, "metrics_plot.png"))
+    plt.savefig(Path(path) / "metrics_plot.png")
     print(f"Saved training plot to {path}\\metrics_plot.png")

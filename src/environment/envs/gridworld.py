@@ -1,7 +1,7 @@
 import functools
-import os
 from copy import copy
 from enum import Enum
+from pathlib import Path
 
 import gymnasium
 import networkx as nx
@@ -270,7 +270,7 @@ class GridWorldEnv(ParallelEnv):
             self.map_indices = self.rng.permutation(np.arange(self.num_maps)).tolist()
 
         mat_idx = self.map_indices.pop()
-        map_path = os.path.join(self.map_dir_path, f'mat{mat_idx}')
+        map_path = Path(self.map_dir_path) / f'mat{mat_idx}'
         obstacle_points = np.loadtxt(map_path, delimiter=' ', dtype='int')
         self.obs_mat[obstacle_points[:, 0], obstacle_points[:, 1]] = 1
 

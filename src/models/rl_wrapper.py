@@ -1,5 +1,5 @@
 import importlib
-import os.path
+from pathlib import Path
 
 import torch.nn as nn
 from ray.rllib.utils.annotations import override
@@ -15,9 +15,8 @@ class CustomTorchModelV2(TorchModelV2, nn.Module):
         if ".py" not in module_file:
             module_file += ".py"
         # get torch model from config
-        models_dir = os.path.join(os.path.dirname(__file__), "arch")
-        module_path = os.path.join(models_dir, module_file)
-        module_name = os.path.splitext(os.path.basename(module_path))[0]
+        module_path = Path(__file__).parent / "arch" / module_file
+        module_name = module_path.stem
         spec = importlib.util.spec_from_file_location(module_name, module_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)

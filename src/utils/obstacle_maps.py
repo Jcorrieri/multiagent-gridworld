@@ -1,5 +1,5 @@
 from collections import deque
-import os.path
+from pathlib import Path
 import random
 
 import numpy as np
@@ -88,8 +88,8 @@ def save_obstacle_map(grid, filename):
 def gen_train_test_split(test_density=0.10):
     total_mats = 50
 
-    train_mat_path = os.path.join("maps", "training")
-    test_mat_path = os.path.join("maps", "testing")
+    train_mat_path = Path("maps", "training")
+    test_mat_path = Path("maps", "testing")
     for i in range(1, total_mats):
         if i < 20:
             obstacle_density = 0.05
@@ -97,12 +97,12 @@ def gen_train_test_split(test_density=0.10):
             obstacle_density = 0.10
 
         grid = generate_obstacles(obstacle_density=obstacle_density)
-        save_path = os.path.join(train_mat_path, f'mat{i}')
+        save_path = train_mat_path / f'mat{i}'
         save_obstacle_map(grid, save_path)
 
     for i in range(1, total_mats):
         grid = generate_obstacles(obstacle_density=test_density)
-        save_path = os.path.join(test_mat_path, f'mat{i}')
+        save_path = test_mat_path / f'mat{i}'
         save_obstacle_map(grid, save_path)
 
 if __name__ == "__main__":

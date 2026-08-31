@@ -1,5 +1,4 @@
 import argparse
-import os
 import shutil
 from pathlib import Path
 
@@ -99,30 +98,30 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
 
 def create_model_directories(env_config: dict, config_path: str):
     env_name = env_config.get('env_name', "gridworld")
-    experiment_dir = os.path.abspath(os.path.join("experiments", env_name))
+    experiment_dir = Path("experiments", env_name).resolve()
 
     if env_name != 'gridworld' and env_name != 'baseline':
         raise FileNotFoundError("Please provide a valid environment name")
 
-    model_dir = os.path.join(experiment_dir, 'v0')
+    model_dir = experiment_dir / 'v0'
     i = 1
-    while os.path.exists(model_dir):
-        model_dir = os.path.join(experiment_dir, f'v{i}')
+    while model_dir.exists():
+        model_dir = experiment_dir / f'v{i}'
         i += 1
 
-    ckpt_dir = os.path.join(model_dir, "ckpt")
-    save_dir = os.path.join(model_dir, "saved")
-    train_metrics_dir = os.path.join(model_dir, "train-metrics")
-    test_result_dir = os.path.join(model_dir, "test-results")
+    ckpt_dir = model_dir / "ckpt"
+    save_dir = model_dir / "saved"
+    train_metrics_dir = model_dir / "train-metrics"
+    test_result_dir = model_dir / "test-results"
 
     paths = [ckpt_dir, save_dir, train_metrics_dir, test_result_dir]
     for path in paths:
-        if os.path.exists(path):
-            os.rmdir(path)
-        os.makedirs(path)
+        if path.exists():
+            path.rmdir()
+        path.mkdir()
 
-    source_path = os.path.join("config", config_path)
-    dest_path = os.path.join(model_dir, "config")
+    source_path = Path("config", config_path)
+    dest_path = model_dir / "config"
     shutil.copy(source_path, dest_path)
 
     return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
@@ -149,8 +148,9 @@ def train(env_config: dict, training_config: dict, device: str, config_path: str
     trainer = build_config(env_config, training_config)
 
     if model_to_restore:
-        model_to_restore = os.path.join("experiments", "gridworld", model_to_restore, "saved")
-        model_to_restore = os.path.abspath(model_to_restore)
+        model_to_restore = Path(
+            "experiments", "gridworld", model_to_restore, "saved"
+        ).resolve()
         trainer.restore(model_to_restore)
 
     print("-"*100 + "\n\nBeginning Training...\n")
@@ -183,8 +183,8 @@ def train(env_config: dict, training_config: dict, device: str, config_path: str
         # save checkpoint
         if i != 0 and i % ckpt_interval == 0:
             index = i // ckpt_interval
-            full_ckpt_dir = os.path.join(ckpt_dir, str(index))
-            os.makedirs(full_ckpt_dir, exist_ok=True)
+            full_ckpt_dir = ckpt_dir / str(index)
+            full_ckpt_dir.mkdir(parents=True, exist_ok=True)
             trainer.save_checkpoint(full_ckpt_dir)
 
         # stop training if the average reward reaches target for 20 consecutive iterations
@@ -210,4 +210,3 @@ def main(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     train(env_config, training_config, str(device), config_path)
-
