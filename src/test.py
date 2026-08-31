@@ -1,7 +1,11 @@
+import argparse
 import os.path
 import time
+from pathlib import Path
 
 import pandas as pd
+import torch
+import yaml
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.models import ModelCatalog
 
@@ -11,7 +15,8 @@ import numpy as np
 
 from environment.envs.gridworld import GridWorldEnv
 from models.rl_wrapper import CustomTorchModelV2
-from utils.environments import make_env
+from utils.cli import init_script
+from utils.environments import make_env, make_reward_scheme, register_envs
 
 
 def test_one_episode(test_env: GridWorldEnv | BaselineEnv, model: Algorithm, explore: bool):
@@ -163,3 +168,8 @@ def test(env_config, test_config) -> None:
         df_disconn.to_csv(disconn_metrics_path, index=False, mode='w', header=True)
 
         print(f"Results saved to {metrics_path}")
+
+
+def main(args: argparse.Namespace) -> None:
+    env_config, testing_config, _ = init_script("testing")
+    test(env_config, testing_config)

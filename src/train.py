@@ -1,8 +1,11 @@
 import argparse
 import os
 import shutil
+from pathlib import Path
 
 import numpy as np
+import torch
+import yaml
 
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.models import ModelCatalog
@@ -11,7 +14,8 @@ from pettingzoo import ParallelEnv
 
 from test import build_algo
 from models.rl_wrapper import CustomTorchModelV2
-from utils.environments import make_env
+from utils.cli import init_script
+from utils.environments import make_env, make_reward_scheme, register_envs
 from utils.plotting import plot_metrics
 
 
@@ -93,7 +97,7 @@ def get_default_config(env_config: dict, ppo_params: dict, module_file: str, dum
 
     return config
 
-def create_model_directories(env_config: dict, args: argparse.Namespace):
+def create_model_directories(env_config: dict, config_path: str):
     env_name = env_config.get('env_name', "gridworld")
     experiment_dir = os.path.abspath(os.path.join("experiments", env_name))
 
@@ -117,21 +121,21 @@ def create_model_directories(env_config: dict, args: argparse.Namespace):
             os.rmdir(path)
         os.makedirs(path)
 
-    source_path = os.path.join("config", args.config)
+    source_path = os.path.join("config", config_path)
     dest_path = os.path.join(model_dir, "config")
     shutil.copy(source_path, dest_path)
 
     return ckpt_dir, save_dir, train_metrics_dir, test_result_dir
 
-def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> None:
+def train(env_config: dict, training_config: dict, device: str, config_path: str) -> None:
     print("Training Parameters:")
     print("-"*50)
-    print(f"Using device: {args.device}")
+    print(f"Using device: {device}")
     print(f"Module: {training_config['module_file']}")
     print(f"Environment: {env_config['env_name']}")
     print(f"Reward Scheme: {env_config['reward_scheme']}")
 
-    ckpt_dir, save_dir, train_metrics_dir, test_result_dir = create_model_directories(env_config, args)
+    ckpt_dir, save_dir, train_metrics_dir, test_result_dir = create_model_directories(env_config, config_path)
 
     print(f"Model Path: {save_dir}")
     print("-"*50)
@@ -197,3 +201,13 @@ def train(args: argparse.Namespace, env_config: dict, training_config: dict) -> 
     print(f"\nSaving to \"{save_dir}\"")
     trainer.save(save_dir)
     plot_metrics(data, train_metrics_dir)
+
+
+def main(args: argparse.Namespace) -> None:
+    env_config, training_config, config_path = init_script("training")
+
+    # TODO: update with key
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    train(env_config, training_config, str(device), config_path)
+
